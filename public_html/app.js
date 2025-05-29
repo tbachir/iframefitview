@@ -29,22 +29,20 @@ async function loadConfig() {
     }
 }
 
-function stopRefreshTimer() {
-    if (refreshTimer) { 
-        clearInterval(refreshTimer); 
-        refreshTimer = null; 
+function manageRefreshTimer(project = null) {
+    if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+    }
+
+    if (project) {
+        const interval = project.refreshInterval || config.defaultRefreshInterval;
+        if (interval) {
+            refreshTimer = setInterval(() => refreshIframe(project), interval);
+        }
     }
 }
 
-function startRefreshTimer(project) {
-    const interval = project.refreshInterval || config.defaultRefreshInterval;
-    if (interval) {
-        refreshTimer = setInterval(async () => {
-            console.log(`Tentative de rafraîchissement de ${project.name}`);
-            await refreshIframe(project);
-        }, interval);
-    }
-}
 
 // Fonction pour rafraîchir l'iframe avec vérification préalable
 async function refreshIframe(project) {
@@ -52,32 +50,32 @@ async function refreshIframe(project) {
     if (!iframe) return;
 
     const newUrl = project.path + '?t=' + Date.now();
-    
+
     try {
         // Vérifier que l'URL est accessible avant de modifier l'iframe
-        const response = await fetch(newUrl, { 
+        const response = await fetch(newUrl, {
             method: 'HEAD', // Utiliser HEAD pour économiser la bande passante
             mode: 'no-cors' // Éviter les erreurs CORS
         });
-        
+
         // Si la requête réussit ou si on ne peut pas déterminer (no-cors), procéder
         console.log(`URL accessible: ${project.path}`);
-        
+
         // Marquer le début du chargement
         isIframeLoading = true;
-        
+
         // Mettre à jour l'URL avec le nouveau timestamp
         iframe.src = newUrl;
-        
+
         // Cacher le message d'erreur s'il existe
-        hideErrorNotification();
-        
+        toggleErrorNotification(false);
+
     } catch (error) {
         console.error('Erreur lors de la vérification de l\'URL:', error);
-        
+
         // Afficher une notification d'erreur
-        showErrorNotification(project);
-        
+        toggleErrorNotification(true, project);
+
         // Ne pas modifier l'iframe, garder l'ancienne version
         isIframeLoading = false;
     }
@@ -85,159 +83,69 @@ async function refreshIframe(project) {
 
 // Fonction pour attacher les événements à l'iframe
 function setupIframeEvents(iframe, project) {
-    // Nettoyer les anciens listeners
-    iframe.onload = null;
-    iframe.onerror = null;
-    
-    // Gestionnaire de chargement réussi
-    iframe.onload = function() {
-        console.log('Iframe chargée avec succès');
+    iframe.onload = () => {
         isIframeLoading = false;
         displayTimestamp();
-        
-        // Attendre un court instant pour s'assurer que le contenu est rendu
-        setTimeout(() => {
-            console.log('Application du fit-to-view après chargement');
-            applyFitToView();
-        }, 200);
+        setTimeout(applyFitToView, 200);
     };
-
-    // Gestionnaire d'erreur
-    iframe.onerror = function() {
-        console.error('Erreur lors du chargement de l\'iframe');
+    
+    iframe.onerror = () => {
         isIframeLoading = false;
     };
 }
 
 // Fonction améliorée pour appliquer le fit-to-view
 function applyFitToView() {
-    // Si l'iframe est en cours de chargement, ne rien faire
-    if (isIframeLoading) {
-        console.log('Iframe en cours de chargement, fit-to-view reporté');
-        return;
-    }
-
+    if (isIframeLoading) return;
+    
     const frame = document.querySelector('.iframe-container iframe');
-    if (!frame) {
-        console.log('Iframe non trouvée');
-        return;
-    }
-
-    const container = frame.parentElement;
-    if (!container) {
-        console.log('Container non trouvé');
-        return;
-    }
-
+    const container = frame?.parentElement;
+    
+    if (!frame || !container) return;
+    
+    // Reset styles
+    Object.assign(frame.style, {
+        width: '100%',
+        height: '100%',
+        transform: '',
+        transformOrigin: 'top left',
+        position: 'absolute',
+        top: '0',
+        left: '0',
+        margin: '0'
+    });
+    
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    
+    // Try to get content dimensions
+    let contentWidth = 1920;
+    let contentHeight = 1080;
+    
     try {
-        // Réinitialiser les styles d'abord
-        frame.style.width = '100%';
-        frame.style.height = '100%';
-        frame.style.transform = '';
-        frame.style.transformOrigin = 'top left';
-        frame.style.position = 'absolute';
-        frame.style.top = '0';
-        frame.style.left = '0';
-        frame.style.margin = '0';
-
-        // Utiliser les dimensions du conteneur disponible
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
-
-        console.log('Dimensions du conteneur:', containerWidth, 'x', containerHeight);
-
-        // Tenter d'accéder au contenu (si même origine)
-        let contentWidth = 1920;  // Valeur par défaut
-        let contentHeight = 1080; // Valeur par défaut
-        
-        try {
-            const frameDoc = frame.contentDocument || frame.contentWindow.document;
-
-            if (frameDoc && frameDoc.body) {
-                // S'assurer que le document est complètement chargé
-                if (frameDoc.readyState === 'complete') {
-                    // Forcer un reflow pour obtenir les vraies dimensions
-                    frameDoc.body.style.display = 'none';
-                    frameDoc.body.offsetHeight; // Force reflow
-                    frameDoc.body.style.display = '';
-                    
-                    // Obtenir les dimensions réelles du contenu
-                    contentWidth = Math.max(
-                        frameDoc.documentElement.scrollWidth,
-                        frameDoc.body.scrollWidth,
-                        frameDoc.documentElement.offsetWidth,
-                        frameDoc.body.offsetWidth,
-                        1
-                    );
-
-                    contentHeight = Math.max(
-                        frameDoc.documentElement.scrollHeight,
-                        frameDoc.body.scrollHeight,
-                        frameDoc.documentElement.offsetHeight,
-                        frameDoc.body.offsetHeight,
-                        1
-                    );
-
-                    console.log('Dimensions du contenu détectées:', contentWidth, 'x', contentHeight);
-                } else {
-                    console.log('Document pas encore complètement chargé');
-                    // Réessayer plus tard
-                    setTimeout(() => applyFitToView(), 500);
-                    return;
-                }
-            }
-        } catch (e) {
-            // Contenu cross-origin ou autre erreur
-            console.log('Impossible d\'accéder au contenu (CORS?), utilisation des dimensions par défaut');
+        const frameDoc = frame.contentDocument;
+        if (frameDoc?.readyState === 'complete') {
+            contentWidth = Math.max(frameDoc.documentElement.scrollWidth, frameDoc.body.scrollWidth, 1);
+            contentHeight = Math.max(frameDoc.documentElement.scrollHeight, frameDoc.body.scrollHeight, 1);
         }
-
-        // S'assurer que les dimensions sont valides
-        if (contentWidth > 0 && contentHeight > 0 && containerWidth > 0 && containerHeight > 0) {
-            // Calculer le facteur d'échelle pour fit-to-view
-            const padding = 40; // Marge de sécurité
-            const scaleX = (containerWidth - padding) / contentWidth;
-            const scaleY = (containerHeight - padding) / contentHeight;
-            const scale = Math.min(scaleX, scaleY, 1); // Ne jamais agrandir au-delà de 100%
-
-            console.log('Facteurs d\'échelle - X:', scaleX.toFixed(3), 'Y:', scaleY.toFixed(3), 'Final:', scale.toFixed(3));
-
-            if (scale < 0.99) { // Seulement si on doit réduire
-                // Définir les dimensions originales de l'iframe
-                frame.style.width = `${contentWidth}px`;
-                frame.style.height = `${contentHeight}px`;
-                
-                // Appliquer la transformation
-                frame.style.transform = `scale(${scale})`;
-                
-                // Calculer et appliquer le centrage
-                const scaledWidth = contentWidth * scale;
-                const scaledHeight = contentHeight * scale;
-                const offsetX = Math.max(0, (containerWidth - scaledWidth) / 2);
-                const offsetY = Math.max(0, (containerHeight - scaledHeight) / 2);
-                
-                frame.style.left = `${offsetX}px`;
-                frame.style.top = `${offsetY}px`;
-                
-                console.log('Transformation appliquée - Scale:', scale, 'Offset:', offsetX, ',', offsetY);
-            } else {
-                console.log('Pas besoin de redimensionner (scale >= 1)');
-            }
-        } else {
-            console.error('Dimensions invalides:', {
-                contentWidth, contentHeight, containerWidth, containerHeight
-            });
-        }
-
-    } catch (error) {
-        console.error('Erreur dans applyFitToView:', error);
-        // En cas d'erreur, réinitialiser les styles
-        frame.style.width = '100%';
-        frame.style.height = '100%';
-        frame.style.transform = '';
-        frame.style.margin = '';
-        frame.style.position = '';
-        frame.style.top = '';
-        frame.style.left = '';
+    } catch (e) {
+        // Use default dimensions for CORS
+    }
+    
+    // Apply scale if needed
+    const padding = 0;
+    const scale = Math.min(
+        (containerWidth - padding) / contentWidth,
+        (containerHeight - padding) / contentHeight,
+        1
+    );
+    
+    if (scale < 0.99) {
+        frame.style.width = `${contentWidth}px`;
+        frame.style.height = `${contentHeight}px`;
+        frame.style.transform = `scale(${scale})`;
+        frame.style.left = `${Math.max(0, (containerWidth - contentWidth * scale) / 2)}px`;
+        frame.style.top = `${Math.max(0, (containerHeight - contentHeight * scale) / 2)}px`;
     }
 }
 
@@ -247,7 +155,7 @@ const router = new HashRouter({
     contentId: 'app-content',
     debug: true,
     onBeforeNavigate: (context) => {
-        stopRefreshTimer();
+        manageRefreshTimer();
         return true;
     }
 });
@@ -313,7 +221,7 @@ router.route('projects', async (ctx) => {
                     <span class="project-icon">${icon}</span>
                     <div class="project-name">${escapeHtml(project.name)}</div>
                     ${project.description ?
-                        `<div class="project-description">${escapeHtml(project.description)}</div>` : ''}
+                    `<div class="project-description">${escapeHtml(project.description)}</div>` : ''}
                 </div>
             `;
         });
@@ -352,7 +260,7 @@ router.route('display/:slug', async (ctx) => {
                     </div>
                 </div>
                 <div class="display-content">
-                    <div class="iframe-container fullscreen-mode" id="iframe-container">
+                    <div class="iframe-container" id="iframe-container">
                         <iframe
                             id="project-iframe"
                             src="${escapeHtml(project.path)}"
@@ -370,16 +278,16 @@ router.route('display/:slug', async (ctx) => {
             if (iframe) {
                 // Configurer les événements
                 setupIframeEvents(iframe, project);
-                
+
                 // Si l'iframe est déjà chargée (cached), appliquer le fit immédiatement
                 if (iframe.contentDocument && iframe.contentDocument.readyState === 'complete') {
                     console.log('Iframe déjà chargée (cache), application du fit-to-view');
                     displayTimestamp();
                     setTimeout(() => applyFitToView(), 100);
                 }
-                
+
                 // Démarrer le timer de rafraîchissement
-                startRefreshTimer(project);
+                manageRefreshTimer(project);
             }
         }, 100);
 
@@ -426,50 +334,44 @@ window.addEventListener('resize', () => {
     }, 250);
 });
 
-// Fonctions pour gérer les notifications d'erreur
-function showErrorNotification(project) {
-    // Supprimer une notification existante
-    hideErrorNotification();
-    
-    // Calculer le temps avant le prochain essai
-    const interval = project.refreshInterval || config.defaultRefreshInterval;
-    const nextTryInSeconds = Math.round(interval / 1000);
-    
-    // Créer la notification
-    const notification = document.createElement('div');
-    notification.className = 'error-notification';
-    notification.id = 'refresh-error-notification';
-    notification.innerHTML = `
-        <span class="error-icon">⚠️</span>
-        <div class="error-message">
-            <div class="error-title">Mise à jour échouée</div>
-            <div class="error-details">Nouvel essai dans ${nextTryInSeconds} secondes</div>
-        </div>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Mettre à jour le compte à rebours
-    let secondsLeft = nextTryInSeconds;
-    errorNotificationTimer = setInterval(() => {
-        secondsLeft--;
-        const details = notification.querySelector('.error-details');
-        if (details && secondsLeft > 0) {
-            details.textContent = `Nouvel essai dans ${secondsLeft} seconde${secondsLeft > 1 ? 's' : ''}`;
-        } else {
-            clearInterval(errorNotificationTimer);
-        }
-    }, 1000);
-}
-
-function hideErrorNotification() {
-    const notification = document.getElementById('refresh-error-notification');
-    if (notification) {
-        notification.classList.add('hiding');
-        setTimeout(() => notification.remove(), 300);
+function toggleErrorNotification(show, project = null) {
+    const existing = document.getElementById('refresh-error-notification');
+    if (existing) {
+        existing.remove();
     }
+    
     if (errorNotificationTimer) {
         clearInterval(errorNotificationTimer);
         errorNotificationTimer = null;
+    }
+    
+    if (show && project) {
+        // Créer et afficher la notification
+        const interval = project.refreshInterval || config.defaultRefreshInterval;
+        const seconds = Math.round(interval / 1000);
+        
+        const notification = document.createElement('div');
+        notification.className = 'error-notification';
+        notification.id = 'refresh-error-notification';
+        notification.innerHTML = `
+            <span class="error-icon">⚠️</span>
+            <div class="error-message">
+                <div class="error-title">Mise à jour échouée</div>
+                <div class="error-details">Nouvel essai dans ${seconds} secondes</div>
+            </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Compte à rebours
+        let remaining = seconds;
+        errorNotificationTimer = setInterval(() => {
+            if (--remaining > 0) {
+                notification.querySelector('.error-details').textContent = 
+                    `Nouvel essai dans ${remaining} seconde${remaining > 1 ? 's' : ''}`;
+            } else {
+                clearInterval(errorNotificationTimer);
+            }
+        }, 1000);
     }
 }

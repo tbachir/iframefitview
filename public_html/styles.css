@@ -1,3 +1,17 @@
+/* Variables CSS pour éviter la répétition */
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #7f8c8d;
+    --danger-color: #dc2626;
+    --bg-color: #f5f7fa;
+    --white: #fff;
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    --shadow-hover: 0 8px 20px rgba(0, 0, 0, 0.15);
+    --radius: 12px;
+    --transition: all 0.3s ease;
+}
+
+/* Reset global */
 * {
     margin: 0;
     padding: 0;
@@ -5,18 +19,20 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #f5f7fa;
-    color: #333;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--bg-color);
+    color: var(--primary-color);
     line-height: 1.6;
 }
 
+/* Conteneur principal */
 .container {
     max-width: 1200px;
     margin: 0 auto;
     padding: 2rem;
 }
 
+/* Header */
 .header {
     text-align: center;
     margin-bottom: 3rem;
@@ -24,22 +40,10 @@ body {
 
 .header h1 {
     font-size: 2.5rem;
-    color: #2c3e50;
     margin-bottom: 0.5rem;
 }
 
-.header p {
-    color: #7f8c8d;
-    font-size: 1.1rem;
-}
-
-.loading {
-    text-align: center;
-    padding: 3rem;
-    color: #7f8c8d;
-    font-size: 1.1rem;
-}
-
+/* Grille de projets */
 .projects-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -59,21 +63,20 @@ body {
     }
 }
 
+/* Carte de projet */
 .project-card {
-    background: white;
-    border-radius: 12px;
+    background: var(--white);
+    border-radius: var(--radius);
     padding: 2rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow);
     cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
+    transition: var(--transition);
     text-align: center;
 }
 
 .project-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-hover);
 }
 
 .project-icon {
@@ -85,22 +88,20 @@ body {
 .project-name {
     font-size: 1.3rem;
     font-weight: 600;
-    color: #2c3e50;
     margin-bottom: 0.5rem;
 }
 
 .project-description {
-    color: #7f8c8d;
+    color: var(--secondary-color);
     font-size: 0.95rem;
-    line-height: 1.5;
 }
 
-/* Vue d'affichage du projet */
+/* Vue d'affichage */
 .display-view {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    min-height: 600px;
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    min-height: 100vh;
     overflow: hidden;
 }
 
@@ -108,8 +109,8 @@ body {
     position: fixed;
     top: 0;
     left: 0;
-    background: #dc2626;
-    color: white;
+    background: var(--danger-color);
+    color: var(--white);
     padding: 15px;
     z-index: 1000;
     display: flex;
@@ -117,22 +118,25 @@ body {
     gap: 20px;
 }
 
+/* Boutons */
 .back-button {
     background: rgba(255, 255, 255, 0.2);
     border: none;
-    color: white;
+    color: var(--white);
     padding: 0.5rem 1.5rem;
     border-radius: 6px;
     cursor: pointer;
     font-size: 1rem;
     text-decoration: none;
     display: inline-block;
+    transition: background 0.3s;
 }
 
 .back-button:hover {
     background: rgba(255, 255, 255, 0.3);
 }
 
+/* Conteneur iframe */
 .iframe-container {
     position: relative;
     height: 100vh;
@@ -145,19 +149,22 @@ body {
     border: none;
 }
 
-.error-message {}
+/* Notifications */
+.error-notification,
+.refresh-indicator {
+    position: fixed;
+    padding: 10px 10px;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    z-index: 1001;
+}
 
 .error-notification {
-    position: fixed;
     bottom: 5px;
     left: 5px;
-    background: #dc2626;
-    color: white;
-    padding: 10px 20px;
-    border-radius: 8px;
-    font-size: 0.6em;
+    background: var(--danger-color);
+    color: var(--white);
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    z-index: 1002;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -170,7 +177,6 @@ body {
 
 .error-notification .error-message {
     flex: 1;
-    border-radius: 8px;
     text-align: center;
 }
 
@@ -185,13 +191,21 @@ body {
 }
 
 .refresh-indicator {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 10px 15px;
-    border-radius: 4px;
-    font-size: 0.85rem;
-    z-index: 1001;
+    bottom: 5px;
+    right: 5px;
+    background: var(--white);
+    color: black;
+    font-weight: bold;
+}
+
+/* Animation de disparition */
+.hiding {
+    animation: fadeOut 0.3s ease-out forwards;
+}
+
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        transform: translateY(10px);
+    }
 }

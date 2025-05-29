@@ -5,7 +5,7 @@
  * @license MIT
  */
 
-(function(window) {
+(function (window) {
     'use strict';
 
     /**
@@ -16,7 +16,7 @@
         constructor(options = {}) {
             // Configuration
             this.config = {
-                defaultRoute: options.defaultRoute || 'home',
+                defaultRoute: options.defaultRoute || '',
                 notFoundRoute: options.notFoundRoute || '404',
                 autoStart: options.autoStart !== false,
                 debug: options.debug || false,
@@ -60,7 +60,7 @@
 
             this.initialized = true;
             this.log('Router initialized');
-            
+
             return this;
         }
 
@@ -77,7 +77,7 @@
             } else {
                 throw new Error('Handler must be a function or configuration object');
             }
-            
+
             this.log(`Route added: ${path}`);
             return this;
         }
@@ -111,10 +111,10 @@
          */
         navigate(path, options = {}) {
             const currentHash = this._getHash();
-            
+
             // Nettoyer le path
             path = this._cleanPath(path);
-            
+
             // Si c'est la même route et pas de force, on ne fait rien
             if (path === currentHash && !options.force) {
                 this.log('Already on this route');
@@ -140,14 +140,6 @@
         }
 
         /**
-         * Navigue en avant
-         */
-        forward() {
-            window.history.forward();
-            return this;
-        }
-
-        /**
          * Recharge la route actuelle
          */
         reload() {
@@ -164,7 +156,7 @@
         showDynamic(content, targetId) {
             const target = targetId || this.config.contentId;
             const element = document.getElementById(target);
-            
+
             if (!element) {
                 console.error(`Element with id "${target}" not found`);
                 return this;
@@ -178,17 +170,17 @@
                     query: this.query,
                     router: this
                 });
-                
+
                 // Si la fonction retourne une promesse
                 if (result && typeof result.then === 'function') {
                     result.then(html => this._renderContent(element, html));
                 } else {
                     this._renderContent(element, result);
                 }
-            } 
+            }
             // Si content est un objet avec html et targetId
             else if (typeof content === 'object' && content.html) {
-                const finalTarget = content.targetId ? 
+                const finalTarget = content.targetId ?
                     document.getElementById(content.targetId) : element;
                 this._renderContent(finalTarget, content.html);
             }
@@ -200,36 +192,6 @@
             return this;
         }
 
-        /**
-         * Obtient les paramètres actuels
-         */
-        getParams() {
-            return { ...this.params };
-        }
-
-        /**
-         * Obtient les query params actuels
-         */
-        getQuery() {
-            return { ...this.query };
-        }
-
-        /**
-         * Obtient la route actuelle
-         */
-        getCurrentRoute() {
-            return this.currentRoute;
-        }
-
-        /**
-         * Vérifie si on est sur une route spécifique
-         * @param {string} path - Chemin à vérifier
-         */
-        isRoute(path) {
-            return this.currentRoute === this._cleanPath(path);
-        }
-
-        // Méthodes privées
 
         _handleInitialLoad() {
             const hash = this._getHash() || this.config.defaultRoute;
@@ -252,7 +214,7 @@
         async _navigateToRoute(path, options = {}) {
             // Nettoyer le path
             path = this._cleanPath(path);
-            
+
             // Parser query params
             const [routePath, queryString] = path.split('?');
             this.query = this._parseQueryString(queryString);
@@ -264,7 +226,7 @@
                     to: routePath,
                     router: this
                 });
-                
+
                 if (canNavigate === false) {
                     // Restaurer l'ancien hash si la navigation est annulée
                     if (this.currentRoute && !options.initial) {
@@ -280,13 +242,13 @@
 
             // Trouver la route correspondante
             let routeFound = false;
-            
+
             for (let [pattern, config] of this.routes) {
                 const params = this._matchRoute(pattern, routePath);
-                
+
                 if (params !== null) {
                     this.params = params;
-                    
+
                     // Exécuter les middlewares
                     const context = {
                         route: routePath,
@@ -294,16 +256,16 @@
                         query: this.query,
                         router: this
                     };
-                    
+
                     for (let middleware of this.middleware) {
                         await middleware(context);
                     }
-                    
+
                     // Exécuter le handler
                     if (config.handler) {
                         await config.handler(context);
                     }
-                    
+
                     routeFound = true;
                     break;
                 }
@@ -374,7 +336,7 @@
 
         _handleNotFound(path) {
             this.log(`Route not found: ${path}`);
-            
+
             // Chercher une route 404
             const notFoundConfig = this.routes.get(this.config.notFoundRoute);
             if (notFoundConfig && notFoundConfig.handler) {
@@ -415,7 +377,7 @@
 
         _parseQueryString(queryString) {
             if (!queryString) return {};
-            
+
             return queryString.split('&').reduce((params, param) => {
                 const [key, value] = param.split('=');
                 params[decodeURIComponent(key)] = decodeURIComponent(value || '');

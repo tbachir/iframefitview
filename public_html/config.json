@@ -6,7 +6,7 @@
             "name": "Projet",
             "slug": "projet",
             "path": "./projects/Projet/index.html",
-            "refreshInterval": 8000,
+            "refreshInterval": 30000,
             "description": "Description optionnelle"
         },
         {
