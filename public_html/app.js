@@ -9,6 +9,90 @@ function escapeHtml(text) {
     return text.replace(/[&<>"']/g, m => map[m]);
 }
 
+const templates = {
+    loadingConfig: `
+        <div class="container">
+            <div class="header">
+                <h1>Huddle Board</h1>
+                <p>Chargement de la configuration...</p>
+            </div>
+            <div class="loading">
+                <p>Veuillez patienter...</p>
+            </div>
+        </div>
+    `,
+    configError: `
+        <div class="container">
+            <div class="error-message">
+                <h2>Erreur de configuration</h2>
+                <p>Impossible de charger le fichier config.json</p>
+                <button class="back-button" onclick="router.reload()">
+                    Réessayer
+                </button>
+            </div>
+        </div>
+    `,
+    projectsList: (projects) => `
+        <div class="container">
+            <div class="header">
+                <h1>Huddle Board</h1>
+                <p>Sélectionnez un projet à afficher</p>
+            </div>
+            <div class="projects-grid">
+                ${projects.map(project => `
+                    <div class="project-card" onclick="router.navigate('display/${project.slug}')">
+                        <span class="project-icon">${project.icon || '📊'}</span>
+                        <div class="project-name">${escapeHtml(project.name)}</div>
+                        ${project.description ? `<div class="project-description">${escapeHtml(project.description)}</div>` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `,
+    loadingConfigMinimal: `
+        <div class="loading">Chargement de la configuration...</div>
+    `,
+    displayProject: (project) => `
+        <div class="display-view">
+            <div class="display-header">
+                <div>
+                    <button onclick="router.back()" class="back-button">←</button>
+                </div>
+                <h3>${escapeHtml(project.name)}</h3>
+            </div>
+            <div class="display-content">
+                <div class="iframe-container" id="iframe-container">
+                    <iframe
+                        id="project-iframe"
+                        src="${escapeHtml(project.path)}"
+                        title="${escapeHtml(project.name)}"
+                        sandbox="allow-scripts allow-same-origin"
+                        loading="lazy"></iframe>
+                </div>
+            </div>
+        </div>
+    `,
+    notFound: `
+        <div class="container">
+            <div class="error-message">
+                <h2>Projet non trouvé</h2>
+                <p>Le projet demandé n'existe pas.</p>
+                <a href="#projects" class="back-button" style="background: #3498db; margin-top: 1rem;">
+                    Retour aux projets
+                </a>
+            </div>
+        </div>
+    `,
+    refreshErrorNotification: (seconds = 10) => `
+        <span class="error-icon">⚠️</span>
+        <div class="error-message">
+            <div class="error-title">Mise à jour échouée</div>
+            <div class="error-details">Nouvel essai dans ${seconds} secondes</div>
+        </div>
+    `
+};
+// ----------- FIN TEMPLATES -----------
+
 let config = null;
 let currentProject = null;
 let refreshTimer = null;
@@ -42,7 +126,6 @@ function manageRefreshTimer(project = null) {
         }
     }
 }
-
 
 // Fonction pour rafraîchir l'iframe avec vérification préalable
 async function refreshIframe(project) {
@@ -162,74 +245,22 @@ router.route('projects', async (ctx) => {
     document.title = 'Huddle Board';
 
     if (!config) {
-        router.showDynamic(`
-            <div class="container">
-                <div class="header">
-                    <h1>Huddle Board</h1>
-                    <p>Chargement de la configuration...</p>
-                </div>
-                <div class="loading">
-                    <p>Veuillez patienter...</p>
-                </div>
-            </div>
-        `);
+        router.showDynamic(templates.loadingConfig);
         const loaded = await loadConfig();
         if (!loaded) {
-            router.showDynamic(`
-                <div class="container">
-                    <div class="error-message">
-                        <h2>Erreur de configuration</h2>
-                        <p>Impossible de charger le fichier config.json</p>
-                        <button class="back-button" onclick="router.reload()" style="background: #3498db; margin-top: 1rem;">
-                            Réessayer
-                        </button>
-                    </div>
-                </div>
-            `);
+            router.showDynamic(templates.configError);
             return;
         }
     }
 
-    router.showDynamic(() => {
-        if (!config || !config.projects) {
-            return `
-                <div class="container">
-                    <div class="error-message">
-                        <h2>Erreur</h2>
-                        <p>Impossible de charger la configuration des projets.</p>
-                    </div>
-                </div>
-            `;
-        }
-        let html = `
-            <div class="container">
-                <div class="header">
-                    <h1>Huddle Board</h1>
-                    <p>Sélectionnez un projet à afficher</p>
-                </div>
-                <div class="projects-grid">
-        `;
-        const enabledProjects = config.projects.filter(p => p.enabled !== false);
-        enabledProjects.forEach(project => {
-            const icon = project.icon || '📊';
-            html += `
-                <div class="project-card" onclick="router.navigate('display/${project.slug}')">
-                    <span class="project-icon">${icon}</span>
-                    <div class="project-name">${escapeHtml(project.name)}</div>
-                    ${project.description ?
-                    `<div class="project-description">${escapeHtml(project.description)}</div>` : ''}
-                </div>
-            `;
-        });
-        html += `</div></div>`;
-        return html;
-    });
+    // Utilisation du template dynamique
+    router.showDynamic(() => templates.projectsList(config.projects));
 });
 
 // Vue projet avec gestion améliorée du chargement
 router.route('display/:slug', async (ctx) => {
     if (!config) {
-        router.showDynamic('<div class="loading">Chargement de la configuration...</div>');
+        router.showDynamic(templates.loadingConfigMinimal);
         const loaded = await loadConfig();
         if (!loaded) {
             router.navigate('projects');
@@ -247,29 +278,7 @@ router.route('display/:slug', async (ctx) => {
     document.title = `${project.name} - Huddle Board`;
 
     router.showDynamic(() => {
-        const generateDisplayHTML = (project) => {
-            return `
-                <div class="display-view">
-                    <div class="display-header">
-                        <h2>${escapeHtml(project.name)}</h2>
-                        <div>
-                            <button onclick="router.back()" class="back-button">← Retour aux projets</a>
-                        </div>
-                    </div>
-                    <div class="display-content">
-                        <div class="iframe-container" id="iframe-container">
-                            <iframe
-                                id="project-iframe"
-                                src="${escapeHtml(project.path)}"
-                                title="${escapeHtml(project.name)}"
-                                sandbox="allow-scripts allow-same-origin"
-                                loading="lazy"></iframe>
-                        </div>
-                    </div>
-                </div>
-            `;
-        };
-        // Attendre que le DOM soit mis à jour
+        // Injection du template dynamique d'affichage de projet
         setTimeout(() => {
             const iframe = document.querySelector('#project-iframe');
             if (iframe) {
@@ -288,24 +297,14 @@ router.route('display/:slug', async (ctx) => {
             }
         }, 100);
 
-        return generateDisplayHTML(project);
+        return templates.displayProject(project);
     });
 });
 
 // 404
 router.route('404', (ctx) => {
     document.title = 'Projet non trouvé - Huddle Board';
-    router.showDynamic(`
-        <div class="container">
-            <div class="error-message">
-                <h2>Projet non trouvé</h2>
-                <p>Le projet demandé n'existe pas.</p>
-                <a href="#projects" class="back-button" style="background: #3498db; margin-top: 1rem;">
-                    Retour aux projets
-                </a>
-            </div>
-        </div>
-    `);
+    router.showDynamic(templates.notFound);
 });
 
 // Logging
@@ -350,13 +349,7 @@ function toggleErrorNotification(show, project = null) {
         const notification = document.createElement('div');
         notification.className = 'error-notification';
         notification.id = 'refresh-error-notification';
-        notification.innerHTML = `
-            <span class="error-icon">⚠️</span>
-            <div class="error-message">
-                <div class="error-title">Mise à jour échouée</div>
-                <div class="error-details">Nouvel essai dans ${seconds} secondes</div>
-            </div>
-        `;
+        notification.innerHTML = templates.refreshErrorNotification(seconds);
 
         document.body.appendChild(notification);
 
