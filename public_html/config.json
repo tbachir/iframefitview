@@ -37,6 +37,7 @@
             "name": "cas texte long",
             "slug": "texte-long",
             "path": "./projects/long_text_in_cell/index.html",
+            "refreshInterval": 8000,
             "description": "Cellule contenant un texte très long pouvant causer un débordement"
         },
         {

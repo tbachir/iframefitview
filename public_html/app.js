@@ -49,22 +49,28 @@ async function refreshIframe(project) {
     const iframe = document.querySelector('.iframe-container iframe');
     if (!iframe) return;
 
-    const newUrl = project.path + '?t=' + Date.now();
+    const timestamp = Date.now();
+    const newUrl = project.path + '?t=' + timestamp;
 
     try {
-        // Vérifier que l'URL est accessible avant de modifier l'iframe
-        const response = await fetch(newUrl, {
-            method: 'HEAD', // Utiliser HEAD pour économiser la bande passante
-            mode: 'no-cors' // Éviter les erreurs CORS
+        // Construire l'URL absolue correctement pour le fetch
+        const currentLocation = window.location;
+        const baseUrl = `${currentLocation.protocol}//${currentLocation.host}${currentLocation.pathname}`;
+        const absoluteUrl = new URL(project.path, baseUrl).href + '?t=' + timestamp;
+
+        console.log(`Vérification de l'URL: ${absoluteUrl}`);
+
+        // Vérifier que l'URL est accessible
+        const response = await fetch(absoluteUrl, {
+            mode: 'no-cors'
         });
 
-        // Si la requête réussit ou si on ne peut pas déterminer (no-cors), procéder
         console.log(`URL accessible: ${project.path}`);
 
         // Marquer le début du chargement
         isIframeLoading = true;
 
-        // Mettre à jour l'URL avec le nouveau timestamp
+        // Utiliser l'URL relative pour l'iframe
         iframe.src = newUrl;
 
         // Cacher le message d'erreur s'il existe
@@ -88,7 +94,7 @@ function setupIframeEvents(iframe, project) {
         displayTimestamp();
         setTimeout(applyFitToView, 200);
     };
-    
+
     iframe.onerror = () => {
         isIframeLoading = false;
     };
@@ -97,31 +103,19 @@ function setupIframeEvents(iframe, project) {
 // Fonction améliorée pour appliquer le fit-to-view
 function applyFitToView() {
     if (isIframeLoading) return;
-    
+
     const frame = document.querySelector('.iframe-container iframe');
     const container = frame?.parentElement;
-    
+
     if (!frame || !container) return;
-    
-    // Reset styles
-    Object.assign(frame.style, {
-        width: '100%',
-        height: '100%',
-        transform: '',
-        transformOrigin: 'top left',
-        position: 'absolute',
-        top: '0',
-        left: '0',
-        margin: '0'
-    });
-    
+
     const containerWidth = container.clientWidth;
     const containerHeight = container.clientHeight;
-    
+
     // Try to get content dimensions
     let contentWidth = 1920;
     let contentHeight = 1080;
-    
+
     try {
         const frameDoc = frame.contentDocument;
         if (frameDoc?.readyState === 'complete') {
@@ -131,22 +125,24 @@ function applyFitToView() {
     } catch (e) {
         // Use default dimensions for CORS
     }
-    
+
     // Apply scale if needed
-    const padding = 0;
+    const padding = 10;
     const scale = Math.min(
         (containerWidth - padding) / contentWidth,
         (containerHeight - padding) / contentHeight,
         1
     );
-    
-    if (scale < 0.99) {
-        frame.style.width = `${contentWidth}px`;
-        frame.style.height = `${contentHeight}px`;
-        frame.style.transform = `scale(${scale})`;
-        frame.style.left = `${Math.max(0, (containerWidth - contentWidth * scale) / 2)}px`;
-        frame.style.top = `${Math.max(0, (containerHeight - contentHeight * scale) / 2)}px`;
+
+    const frameStyle = {
+        width: `${contentWidth}px`,
+        height: `${contentHeight}px`,
+        transform: 'translate(-50%, -50%)',
     }
+    if (scale < 0.99) {
+        frameStyle.transform += ` scale(${scale})`;
+    }
+    Object.assign(frame.style, frameStyle);
 }
 
 // Initialiser le routeur
@@ -251,27 +247,28 @@ router.route('display/:slug', async (ctx) => {
     document.title = `${project.name} - Huddle Board`;
 
     router.showDynamic(() => {
-        const html = `
-            <div class="display-view">
-                <div class="display-header">
-                    <h2>${escapeHtml(project.name)}</h2>
-                    <div>
-                        <a href="#projects" class="back-button">← Retour aux projets</a>
+        const generateDisplayHTML = (project) => {
+            return `
+                <div class="display-view">
+                    <div class="display-header">
+                        <h2>${escapeHtml(project.name)}</h2>
+                        <div>
+                            <button onclick="router.back()" class="back-button">← Retour aux projets</a>
+                        </div>
+                    </div>
+                    <div class="display-content">
+                        <div class="iframe-container" id="iframe-container">
+                            <iframe
+                                id="project-iframe"
+                                src="${escapeHtml(project.path)}"
+                                title="${escapeHtml(project.name)}"
+                                sandbox="allow-scripts allow-same-origin"
+                                loading="lazy"></iframe>
+                        </div>
                     </div>
                 </div>
-                <div class="display-content">
-                    <div class="iframe-container" id="iframe-container">
-                        <iframe
-                            id="project-iframe"
-                            src="${escapeHtml(project.path)}"
-                            title="${escapeHtml(project.name)}"
-                            sandbox="allow-scripts allow-same-origin"
-                            loading="lazy"></iframe>
-                    </div>
-                </div>
-            </div>
-        `;
-
+            `;
+        };
         // Attendre que le DOM soit mis à jour
         setTimeout(() => {
             const iframe = document.querySelector('#project-iframe');
@@ -291,7 +288,7 @@ router.route('display/:slug', async (ctx) => {
             }
         }, 100);
 
-        return html;
+        return generateDisplayHTML(project);
     });
 });
 
@@ -339,17 +336,17 @@ function toggleErrorNotification(show, project = null) {
     if (existing) {
         existing.remove();
     }
-    
+
     if (errorNotificationTimer) {
         clearInterval(errorNotificationTimer);
         errorNotificationTimer = null;
     }
-    
+
     if (show && project) {
         // Créer et afficher la notification
         const interval = project.refreshInterval || config.defaultRefreshInterval;
         const seconds = Math.round(interval / 1000);
-        
+
         const notification = document.createElement('div');
         notification.className = 'error-notification';
         notification.id = 'refresh-error-notification';
@@ -360,14 +357,14 @@ function toggleErrorNotification(show, project = null) {
                 <div class="error-details">Nouvel essai dans ${seconds} secondes</div>
             </div>
         `;
-        
+
         document.body.appendChild(notification);
-        
+
         // Compte à rebours
         let remaining = seconds;
         errorNotificationTimer = setInterval(() => {
             if (--remaining > 0) {
-                notification.querySelector('.error-details').textContent = 
+                notification.querySelector('.error-details').textContent =
                     `Nouvel essai dans ${remaining} seconde${remaining > 1 ? 's' : ''}`;
             } else {
                 clearInterval(errorNotificationTimer);
