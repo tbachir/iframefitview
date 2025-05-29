@@ -1,0 +1,62 @@
+{
+    "defaultResizeMode": "scale",
+    "defaultRefreshInterval": 30000,
+    "projects": [
+        {
+            "name": "Projet",
+            "slug": "projet",
+            "path": "./projects/Projet/index.html",
+            "refreshInterval": 40000,
+            "description": "Description optionnelle"
+        },
+        {
+            "name": "OFFLINE 2",
+            "slug": "OFFLINE2",
+            "path": "./projects/Projet copy/index.html",
+            "description": "Description optionnelle"
+        },
+        {
+            "name": "Projet 3",
+            "slug": "projet-3",
+            "path": "./projects/Projet copy 3/index.html",
+            "description": "Description optionnelle"
+        },
+        {
+            "name": "Projet 4",
+            "slug": "projet-4",
+            "path": "./projects/Projet copy 4/index.html",
+            "description": "Description optionnelle"
+        },
+        {
+            "name": "cas styles inline",
+            "slug": "styles-inline",
+            "path": "./projects/inline_styles_excel_like/index.html",
+            "description": "Fichier avec de nombreux styles inline à la Excel"
+        },
+        {
+            "name": "cas texte long",
+            "slug": "texte-long",
+            "path": "./projects/long_text_in_cell/index.html",
+            "description": "Cellule contenant un texte très long pouvant causer un débordement"
+        },
+        {
+            "name": "cas formules visibles",
+            "slug": "formules-visibles",
+            "path": "./projects/visible_formulas/index.html",
+            "description": "Cellules contenant des formules affichées telles que =A2+B2"
+        },
+        {
+            "name": "cas tableaux imbriqués",
+            "slug": "tableaux-imbriques",
+            "path": "./projects/nested_tables/index.html",
+            "refreshInterval": 30000,
+            "description": "Tableaux HTML imbriqués à l'intérieur d'autres cellules de tableau"
+        },
+        {
+            "name": "cas cellules vides avec largeur",
+            "slug": "cellules-vides-largeur",
+            "path": "./projects/empty_cells_with_width/index.html",
+            "description": "Cellules vides ayant une largeur définie via du CSS"
+        }
+    ]
+}
