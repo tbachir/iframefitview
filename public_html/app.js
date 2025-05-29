@@ -14,6 +14,7 @@ let currentProject = null;
 let refreshTimer = null;
 let resizeDebounceTimer = null;
 let isIframeLoading = false;
+let errorNotificationTimer = null;
 
 async function loadConfig() {
     try {
@@ -38,23 +39,48 @@ function stopRefreshTimer() {
 function startRefreshTimer(project) {
     const interval = project.refreshInterval || config.defaultRefreshInterval;
     if (interval) {
-        refreshTimer = setInterval(() => {
-            console.log(`Rafraîchissement de ${project.name}`);
-            refreshIframe(project);
+        refreshTimer = setInterval(async () => {
+            console.log(`Tentative de rafraîchissement de ${project.name}`);
+            await refreshIframe(project);
         }, interval);
     }
 }
 
-// Fonction pour rafraîchir l'iframe
-function refreshIframe(project) {
+// Fonction pour rafraîchir l'iframe avec vérification préalable
+async function refreshIframe(project) {
     const iframe = document.querySelector('.iframe-container iframe');
     if (!iframe) return;
 
-    // Marquer le début du chargement
-    isIframeLoading = true;
+    const newUrl = project.path + '?t=' + Date.now();
     
-    // Mettre à jour l'URL avec un timestamp pour forcer le rechargement
-    iframe.src = project.path + '?t=' + Date.now();
+    try {
+        // Vérifier que l'URL est accessible avant de modifier l'iframe
+        const response = await fetch(newUrl, { 
+            method: 'HEAD', // Utiliser HEAD pour économiser la bande passante
+            mode: 'no-cors' // Éviter les erreurs CORS
+        });
+        
+        // Si la requête réussit ou si on ne peut pas déterminer (no-cors), procéder
+        console.log(`URL accessible: ${project.path}`);
+        
+        // Marquer le début du chargement
+        isIframeLoading = true;
+        
+        // Mettre à jour l'URL avec le nouveau timestamp
+        iframe.src = newUrl;
+        
+        // Cacher le message d'erreur s'il existe
+        hideErrorNotification();
+        
+    } catch (error) {
+        console.error('Erreur lors de la vérification de l\'URL:', error);
+        
+        // Afficher une notification d'erreur
+        showErrorNotification(project);
+        
+        // Ne pas modifier l'iframe, garder l'ancienne version
+        isIframeLoading = false;
+    }
 }
 
 // Fonction pour attacher les événements à l'iframe
@@ -320,10 +346,10 @@ router.route('display/:slug', async (ctx) => {
         const html = `
             <div class="display-view">
                 <div class="display-header">
-                    <div>
-                        <a href="#projects" class="back-button">←</a>
-                    </div>
                     <h2>${escapeHtml(project.name)}</h2>
+                    <div>
+                        <a href="#projects" class="back-button">← Retour aux projets</a>
+                    </div>
                 </div>
                 <div class="display-content">
                     <div class="iframe-container fullscreen-mode" id="iframe-container">
@@ -400,3 +426,50 @@ window.addEventListener('resize', () => {
     }, 250);
 });
 
+// Fonctions pour gérer les notifications d'erreur
+function showErrorNotification(project) {
+    // Supprimer une notification existante
+    hideErrorNotification();
+    
+    // Calculer le temps avant le prochain essai
+    const interval = project.refreshInterval || config.defaultRefreshInterval;
+    const nextTryInSeconds = Math.round(interval / 1000);
+    
+    // Créer la notification
+    const notification = document.createElement('div');
+    notification.className = 'error-notification';
+    notification.id = 'refresh-error-notification';
+    notification.innerHTML = `
+        <span class="error-icon">⚠️</span>
+        <div class="error-message">
+            <div class="error-title">Mise à jour échouée</div>
+            <div class="error-details">Nouvel essai dans ${nextTryInSeconds} secondes</div>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Mettre à jour le compte à rebours
+    let secondsLeft = nextTryInSeconds;
+    errorNotificationTimer = setInterval(() => {
+        secondsLeft--;
+        const details = notification.querySelector('.error-details');
+        if (details && secondsLeft > 0) {
+            details.textContent = `Nouvel essai dans ${secondsLeft} seconde${secondsLeft > 1 ? 's' : ''}`;
+        } else {
+            clearInterval(errorNotificationTimer);
+        }
+    }, 1000);
+}
+
+function hideErrorNotification() {
+    const notification = document.getElementById('refresh-error-notification');
+    if (notification) {
+        notification.classList.add('hiding');
+        setTimeout(() => notification.remove(), 300);
+    }
+    if (errorNotificationTimer) {
+        clearInterval(errorNotificationTimer);
+        errorNotificationTimer = null;
+    }
+}
