@@ -56,7 +56,7 @@ const templates = {
         <div class="display-view">
             <div class="display-header">
                 <div>
-                    <button onclick="router.back()" class="back-button">←</button>
+                    <a href="#projects" class="back-button">←</a>
                 </div>
                 <h3>${escapeHtml(project.name)}</h3>
             </div>
@@ -201,6 +201,8 @@ function applyFitToView() {
 
     try {
         const frameDoc = frame.contentDocument;
+ hideIframeScrollbars(frameDoc);
+        
         if (frameDoc?.readyState === 'complete') {
             contentWidth = Math.max(frameDoc.documentElement.scrollWidth, frameDoc.body.scrollWidth, 1);
             contentHeight = Math.max(frameDoc.documentElement.scrollHeight, frameDoc.body.scrollHeight, 1);
@@ -228,6 +230,20 @@ function applyFitToView() {
     Object.assign(frame.style, frameStyle);
 }
 
+function hideIframeScrollbars(frameDoc) {
+                try {
+                    // Créer head si absent (cas rares d'export Excel HTML minimal)
+                    if (!frameDoc.head) {
+                        var head = frameDoc.createElement('head');
+                        frameDoc.documentElement.insertBefore(head, frameDoc.body);
+                    }
+                    var style = frameDoc.createElement('style');
+                    style.innerHTML = 'html, body { overflow: hidden !important; margin: 0; padding: 0; }';
+                    frameDoc.head.appendChild(style);
+                    frameDoc.documentElement.style.overflow = "hidden";
+                    frameDoc.body.style.overflow = "hidden";
+                } catch (e) { }
+            }
 // Initialiser le routeur
 const router = new HashRouter({
     defaultRoute: 'projects',
