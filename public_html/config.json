@@ -5,7 +5,7 @@
         {
             "name": "Projet",
             "slug": "projet",
-            "path": "./projects/Projet/index.html",
+            "path": "projects/Projet/index.html",
             "refreshInterval": 30000,
             "description": "Description optionnelle"
         },
