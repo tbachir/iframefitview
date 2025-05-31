@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,8 +16,8 @@
             --info: #3b82f6;
             --bg: #f5f7fa;
             --white: #fff;
-            --shadow: 0 2px 8px rgba(0,0,0,0.1);
-            --shadow-hover: 0 8px 20px rgba(0,0,0,0.15);
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            --shadow-hover: 0 8px 20px rgba(0, 0, 0, 0.15);
             --radius: 12px;
             --transition: all 0.3s ease;
         }
@@ -62,8 +63,15 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .project-card {
@@ -122,7 +130,7 @@
         }
 
         .back-button {
-            background: rgba(255,255,255,0.2);
+            background: rgba(255, 255, 255, 0.2);
             border: none;
             color: var(--white);
             padding: 0.5rem;
@@ -135,7 +143,7 @@
         }
 
         .back-button:hover {
-            background: rgba(255,255,255,0.3);
+            background: rgba(255, 255, 255, 0.3);
         }
 
         /* Conteneur iframe */
@@ -201,18 +209,37 @@
             transition: color 0.3s;
         }
 
-        .status-healthy { color: var(--success); }
-        .status-error { color: var(--danger); }
-        .status-warning { color: var(--warning); }
-        .status-loading { 
+        .status-healthy {
+            color: var(--success);
+        }
+
+        .status-error {
+            color: var(--danger);
+        }
+
+        .status-warning {
+            color: var(--warning);
+        }
+
+        .status-loading {
             color: var(--secondary);
             animation: pulse 1s infinite;
         }
-        .status-identical { color: var(--info); }
+
+        .status-identical {
+            color: var(--info);
+        }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
 
         /* Loader */
@@ -226,16 +253,23 @@
         }
 
         /* Utilitaires */
-        .hidden { display: none !important; }
-        .fadeout { 
+        .hidden {
+            display: none !important;
+        }
+
+        .fadeout {
             animation: fadeOut 0.3s forwards;
         }
 
         @keyframes fadeOut {
-            to { opacity: 0; transform: translateY(10px); }
+            to {
+                opacity: 0;
+                transform: translateY(10px);
+            }
         }
     </style>
 </head>
+
 <body>
     <div id="app"></div>
 
@@ -243,9 +277,7 @@
         // Configuration globale
         const CONFIG = {
             defaultRefreshInterval: 30000,
-            preloadDelay: 25000, // Précharger 5s avant le rafraîchissement
-            retryDelay: 5000,
-            maxRetries: 3,
+            retryDelay: 120000, // Réessayer toutes les 2 minutes
             projects: [
                 {
                     name: "Projet",
@@ -340,35 +372,32 @@
         // Module de gestion des iframes
         class IframeManager {
             constructor() {
-                this.current = null;
+                this.currentIframe = null;
                 this.preload = null;
                 this.container = null;
-                this.retryCount = 0;
-                this.currentContent = null;
-                this.currentUrl = null;
+                this.currentIframeContent = null;
                 this.lastContentChange = null;
+                this.lastSuccessfulUrl = null;
             }
 
-            async load(project, container) {
-                this.container = container;
-                this.retryCount = 0;
-                
+            async load(project) {
                 const url = Utils.addTimestamp(project.path);
-                this.currentUrl = url;
-                
+
                 // Créer l'iframe principale
-                this.current = this.createIframe(url);
-                container.innerHTML = '';
-                container.appendChild(this.current);
-                
-                // Attendre le chargement
-                await this.waitForLoad(this.current);
+                this.currentIframe = this.createIframe(url);
+                this.container = this.currentIframe.parentElement;
+                this.container.innerHTML = '';
+                this.container.appendChild(this.currentIframe);
+
                 
                 // Stocker le contenu initial
-                this.currentContent = Utils.getDocumentContent(this.current);
-                this.lastContentChange = new Date();
-                
-                return this.current;
+
+
+                return this.currentIframe;
+            }
+
+            setupEvents() {
+                this.updateIframe();
             }
 
             createIframe(url) {
@@ -378,23 +407,31 @@
                 return iframe;
             }
 
-            async waitForLoad(iframe) {
+            async onLoad(iframe) {
                 return new Promise((resolve, reject) => {
                     const timeout = setTimeout(() => {
                         reject(new Error('Timeout'));
                     }, 10000);
-
-                    iframe.onload = () => {
+                    this.currentIframe.onload = () => {
                         clearTimeout(timeout);
                         this.applyScale(iframe);
+                        this.currentIframeContent = Utils.getDocumentContent(iframe);
+                        this.lastSuccessfulUrl = iframe.src;
                         resolve(iframe);
                     };
 
-                    iframe.onerror = () => {
+                    this.currentIframe.onerror = () => {
                         clearTimeout(timeout);
                         reject(new Error('Erreur de chargement'));
                     };
                 });
+            }
+
+            updateIframe(url) {
+                this.monitor.updateStatus('healthy', 'En ligne');
+                this.monitor.updateTimestamp();
+                this.monitor.updateContentChange(this.iframeManager.getLastContentChange());
+                this.setupRefresh(project);
             }
 
             applyScale(iframe) {
@@ -427,8 +464,9 @@
             }
 
             async preloadNext(project) {
+                // Toujours utiliser un nouveau timestamp
                 const url = Utils.addTimestamp(project.path);
-                
+
                 // Créer iframe de préchargement invisible
                 this.preload = this.createIframe(url);
                 this.preload.style.visibility = 'hidden';
@@ -438,31 +476,37 @@
 
                 try {
                     await this.waitForLoad(this.preload);
-                    
+
                     // Comparer le contenu
                     const newContent = Utils.getDocumentContent(this.preload);
-                    const isIdentical = newContent === this.currentContent;
-                    
+                    const isIdentical = newContent === this.currentIframeContent;
+
+                    // Marquer comme en ligne
+                    this.lastSuccessfulUrl = url;
+
                     if (isIdentical) {
                         // Contenu identique, supprimer l'iframe de préchargement
                         document.body.removeChild(this.preload);
                         this.preload = null;
-                        return { success: true, identical: true, url: this.currentUrl };
+                        return { success: true, identical: true, url: url };
                     }
-                    
+                    this.lastContentChange = new Date();
+
                     // Contenu différent, garder l'iframe préchargée
-                    return { 
-                        success: true, 
-                        identical: false, 
+                    return {
+                        success: true,
+                        identical: false,
                         url: url,
                         newContent: newContent
                     };
                 } catch (error) {
+                    // Marquer comme hors ligne
+
                     if (this.preload && this.preload.parentNode) {
                         document.body.removeChild(this.preload);
                     }
                     this.preload = null;
-                    return { success: false, identical: false };
+                    return { success: false, identical: false, error: error.message };
                 }
             }
 
@@ -471,24 +515,24 @@
 
                 // Retirer l'iframe de préchargement du body
                 document.body.removeChild(this.preload);
-                
+
                 // Remplacer l'iframe actuelle
-                this.container.removeChild(this.current);
+                this.container.removeChild(this.currentIframe);
                 this.preload.style.visibility = 'visible';
                 this.preload.style.position = 'absolute';
                 this.preload.style.pointerEvents = 'auto';
                 this.container.appendChild(this.preload);
-                
+
                 // Mettre à jour les références
-                this.current = this.preload;
+                this.currentIframe = this.preload;
                 this.preload = null;
-                this.currentUrl = result.url;
-                this.currentContent = result.newContent;
+                this.currentIframe.src = result.url;
+                this.currentIframeContent = result.newContent;
                 this.lastContentChange = new Date();
-                
+
                 // Réappliquer le scale
-                this.applyScale(this.current);
-                
+                this.applyScale(this.currentIframe);
+
                 return true;
             }
 
@@ -500,12 +544,13 @@
                 if (this.preload && this.preload.parentNode) {
                     this.preload.parentNode.removeChild(this.preload);
                 }
-                this.current = null;
+                this.currentIframe = null;
                 this.preload = null;
                 this.container = null;
-                this.currentContent = null;
-                this.currentUrl = null;
+                this.currentIframeContent = null;
+                this.currentIframe.src = null;
                 this.lastContentChange = null;
+                this.lastSuccessfulUrl = null;
             }
         }
 
@@ -516,6 +561,7 @@
                 this.timestampEl = null;
                 this.contentChangeEl = null;
                 this.errorEl = null;
+                this.offlineNotification = null;
             }
 
             init() {
@@ -540,10 +586,10 @@
 
             updateStatus(status, message) {
                 if (!this.statusEl) return;
-                
+
                 const dot = this.statusEl.querySelector('.status-dot');
                 const msg = this.statusEl.querySelector('.status-message');
-                
+
                 dot.className = `status-dot status-${status}`;
                 msg.textContent = message;
             }
@@ -555,49 +601,51 @@
 
             updateContentChange(date) {
                 if (!date) return;
-                
+
                 if (!this.contentChangeEl) {
                     this.contentChangeEl = this.createElement('content-change-indicator', `
                         <span>📝</span>
                         <span>Contenu modifié : ${Utils.formatTime(date)}</span>
                     `);
                 } else {
-                    this.contentChangeEl.querySelector('span:last-child').textContent = 
+                    this.contentChangeEl.querySelector('span:last-child').textContent =
                         `Contenu modifié : ${Utils.formatTime(date)}`;
                 }
             }
 
-            showError(message) {
-                if (this.errorEl) {
-                    this.errorEl.remove();
+            showOfflineNotification(nextRetry) {
+                if (!this.offlineNotification) {
+                    this.offlineNotification = this.createElement('error-notification', `
+                        <span>⚠️</span>
+                        <span>Échec de la mise à jour. Nouvelle tentative dans 2 minutes...</span>
+                    `);
+                } else {
+                    this.offlineNotification.querySelector('span:last-child').textContent =
+                        'Échec de la mise à jour. Nouvelle tentative dans 2 minutes...';
                 }
+            }
 
-                this.errorEl = this.createElement('error-notification', `
-                    <span>⚠️</span>
-                    <span>${message}</span>
-                `);
-
-                setTimeout(() => {
-                    if (this.errorEl) {
-                        this.errorEl.classList.add('fadeout');
-                        setTimeout(() => {
-                            if (this.errorEl) {
-                                this.errorEl.remove();
-                                this.errorEl = null;
-                            }
-                        }, 300);
-                    }
-                }, 5000);
+            hideOfflineNotification() {
+                if (this.offlineNotification) {
+                    this.offlineNotification.classList.add('fadeout');
+                    setTimeout(() => {
+                        if (this.offlineNotification) {
+                            this.offlineNotification.remove();
+                            this.offlineNotification = null;
+                        }
+                    }, 300);
+                }
             }
 
             cleanup() {
-                [this.statusEl, this.timestampEl, this.contentChangeEl, this.errorEl].forEach(el => {
+                [this.statusEl, this.timestampEl, this.contentChangeEl, this.errorEl, this.offlineNotification].forEach(el => {
                     if (el) el.remove();
                 });
                 this.statusEl = null;
                 this.timestampEl = null;
                 this.contentChangeEl = null;
                 this.errorEl = null;
+                this.offlineNotification = null;
             }
         }
 
@@ -606,7 +654,7 @@
             constructor() {
                 this.currentProject = null;
                 this.refreshTimer = null;
-                this.preloadTimer = null;
+                this.retryTimer = null;
                 this.iframeManager = new IframeManager();
                 this.monitor = new Monitor();
                 this.routes = {
@@ -620,7 +668,7 @@
                 window.addEventListener('hashchange', () => this.handleRoute());
                 window.addEventListener('resize', Utils.debounce(() => {
                     if (this.currentProject) {
-                        this.iframeManager.applyScale(this.iframeManager.current);
+                        this.iframeManager.applyScale(this.iframeManager.currentIframe);
                     }
                 }, 250));
 
@@ -630,7 +678,7 @@
             handleRoute() {
                 const hash = window.location.hash.slice(1) || '/';
                 const [path, param] = hash.split('/').filter(Boolean);
-                
+
                 if (path === 'display' && param) {
                     this.routes['/display/:slug'](param);
                 } else {
@@ -644,7 +692,7 @@
 
             showProjects() {
                 this.cleanup();
-                
+
                 this.render(`
                     <div class="container">
                         <div class="header">
@@ -693,99 +741,104 @@
                 `);
 
                 const container = document.querySelector('.iframe-container');
-                
+
                 try {
                     this.monitor.updateStatus('loading', 'Chargement...');
                     await this.iframeManager.load(project, container);
-                    this.monitor.updateStatus('healthy', 'En ligne');
-                    this.monitor.updateTimestamp();
-                    this.monitor.updateContentChange(this.iframeManager.getLastContentChange());
-                    this.setupRefresh(project);
+
                 } catch (error) {
-                    this.monitor.updateStatus('error', 'Erreur');
-                    this.monitor.showError('Impossible de charger le projet');
-                    this.handleLoadError(project, container);
+                    this.monitor.updateStatus('error', 'Hors ligne');
+                    this.monitor.showOfflineNotification();
+                    this.setupRetry(project, container);
                 }
             }
 
             setupRefresh(project) {
                 const interval = project.refreshInterval || CONFIG.defaultRefreshInterval;
-                const preloadTime = interval - CONFIG.preloadDelay;
-
-                // Timer de préchargement
-                this.preloadTimer = setTimeout(async () => {
-                    this.monitor.updateStatus('loading', 'Vérification...');
-                    const result = await this.iframeManager.preloadNext(project);
-                    
-                    if (result.success) {
-                        if (result.identical) {
-                            this.monitor.updateStatus('identical', 'Contenu identique');
-                        } else {
-                            this.monitor.updateStatus('healthy', 'Nouveau contenu prêt');
-                        }
-                    } else {
-                        this.monitor.updateStatus('warning', 'Préchargement échoué');
-                    }
-                }, preloadTime);
 
                 // Timer de rafraîchissement
                 this.refreshTimer = setTimeout(async () => {
-                    // Récupérer le résultat du préchargement s'il existe
-                    const result = await this.iframeManager.preloadNext(this.currentProject);
-                    
+                    // Indiquer le préchargement
+                    this.monitor.updateStatus('loading', 'Chargement...');
+
+                    // Précharger avec nouveau timestamp
+                    const result = await this.iframeManager.preloadNext(project);
+
                     if (result.success) {
+                        this.monitor.hideOfflineNotification();
+
                         if (!result.identical) {
                             // Le contenu a changé, utiliser la nouvelle iframe
                             this.iframeManager.swap(result);
                             this.monitor.updateContentChange(this.iframeManager.getLastContentChange());
-                            this.monitor.updateStatus('healthy', 'En ligne');
-                        } else {
-                            // Contenu identique, juste mettre à jour le statut
-                            this.monitor.updateStatus('identical', 'Contenu identique');
                         }
+
+                        // Mettre à jour le statut et le timestamp
+                        this.monitor.updateStatus('healthy', 'En ligne');
+                        this.monitor.updateTimestamp();
+
+                        // Relancer le cycle normal
+                        this.setupRefresh(project);
                     } else {
-                        this.monitor.updateStatus('warning', 'Erreur de vérification');
+                        // Échec du préchargement
+                        this.monitor.updateStatus('error', 'Hors ligne');
+                        this.monitor.showOfflineNotification();
+
+                        // Passer en mode retry
+                        this.setupRetry(project);
                     }
-                    
-                    // Toujours mettre à jour le timestamp
-                    this.monitor.updateTimestamp();
-                    
-                    // Relancer le cycle
-                    this.setupRefresh(project);
                 }, interval);
             }
 
-            async handleLoadError(project, container) {
-                if (this.iframeManager.retryCount < CONFIG.maxRetries) {
-                    this.iframeManager.retryCount++;
-                    this.monitor.updateStatus('warning', `Tentative ${this.iframeManager.retryCount}/${CONFIG.maxRetries}`);
-                    
-                    setTimeout(async () => {
+            setupRetry(project, container = null) {
+                // Annuler le refresh normal
+                clearTimeout(this.refreshTimer);
+
+                // Configurer le retry toutes les 2 minutes
+                this.retryTimer = setTimeout(async () => {
+                    this.monitor.updateStatus('loading', 'Nouvelle tentative...');
+
+                    if (container) {
+                        // Premier chargement
                         try {
                             await this.iframeManager.load(project, container);
                             this.monitor.updateStatus('healthy', 'En ligne');
                             this.monitor.updateTimestamp();
                             this.monitor.updateContentChange(this.iframeManager.getLastContentChange());
+                            this.monitor.hideOfflineNotification();
                             this.setupRefresh(project);
                         } catch (error) {
-                            this.handleLoadError(project, container);
+                            this.monitor.updateStatus('error', 'Hors ligne');
+                            this.setupRetry(project, container);
                         }
-                    }, CONFIG.retryDelay);
-                } else {
-                    this.monitor.updateStatus('error', 'Hors ligne');
-                    container.innerHTML = `
-                        <div style="text-align: center; padding: 2rem;">
-                            <h3>Projet inaccessible</h3>
-                            <p>Impossible de charger ${project.name}</p>
-                            <button onclick="window.location.reload()">Réessayer</button>
-                        </div>
-                    `;
-                }
+                    } else {
+                        // Retry du préchargement
+                        const result = await this.iframeManager.preloadNext(project);
+
+                        if (result.success) {
+                            this.monitor.hideOfflineNotification();
+
+                            if (!result.identical) {
+                                this.iframeManager.swap(result);
+                                this.monitor.updateContentChange(this.iframeManager.getLastContentChange());
+                            }
+
+                            this.monitor.updateStatus('healthy', 'En ligne');
+                            this.monitor.updateTimestamp();
+
+                            // Retour au cycle normal
+                            this.setupRefresh(project);
+                        } else {
+                            this.monitor.updateStatus('error', 'Hors ligne');
+                            this.setupRetry(project);
+                        }
+                    }
+                }, CONFIG.retryDelay);
             }
 
             cleanup() {
                 clearTimeout(this.refreshTimer);
-                clearTimeout(this.preloadTimer);
+                clearTimeout(this.retryTimer);
                 this.iframeManager.cleanup();
                 this.monitor.cleanup();
                 this.currentProject = null;
@@ -801,4 +854,5 @@
         }
     </script>
 </body>
+
 </html>

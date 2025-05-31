@@ -1,0 +1,697 @@
+Voici mon code au complet sur le quel se baser. Peux tu le refactoriser, supprimer les appels inutilisés , regrouper les bouts de code redondant ou effectuant les memes choses. Tout en gardant l'idée de séparer les responsabilités le plus possible en classes unitaires.
+
+Ces classes ne seront utilisées uniquement pour ce projet bien spécifique. Je veux pouvoir Supprimer une fonctionnalité sans impacter les autres.
+
+L'objectif premier est d'avoir le code le plus léger et court possible. Gestion d'erreurs minimale pour les cas particuliers et qui ne sont pas de risque majeur. 
+
+
+
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>HuddleBoard Display</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .display-view {
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .display-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            padding-right: 10px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            /* gap: 20px; */
+            text-transform: uppercase;
+        }
+
+        .m-0 {
+            margin: 0;
+        }
+
+        .bg-red {
+            background-color: #dc2626;
+        }
+
+        .bg-white {
+            background-color: #f5f5f5;
+        }
+
+        .bg-dark {
+            background-color: #333;
+        }
+
+        .color-dark {
+            color: #333;
+        }
+
+        .color-white {
+            color: #f5f5f5;
+        }
+
+        .color-red {
+            color: #dc2626;
+        }
+
+        .back-button {
+            border: none;
+            padding: 0.5rem;
+            cursor: pointer;
+            font-size: 1.5rem;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        /* Conteneur iframe */
+        .iframe-container {
+            position: relative;
+            height: calc(100vh - 50px);
+            margin-top: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .iframe-container iframe {
+            position: absolute;
+            border: none;
+            background: transparent;
+            transform-origin: center center;
+        }
+
+        .iframe-container iframe.defaultSize {
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body class="bg-white color-dark">
+    <div id="app"></div>
+
+    <script>
+        class HuddleBoardCore {
+            constructor() {
+                this.config = {
+                    defaultRefreshInterval: 30000,
+                    refreshFailInterval: 8000,
+                    debug: true,
+                    displays: [
+                        {
+                            name: "Projet",
+                            slug: "projet",
+                            path: "displays/Projet/index.html",
+                            refreshInterval: 17000,
+                            description: "Description optionnelle"
+                        },
+                        {
+                            name: "OFFLINE 2",
+                            slug: "offline2",
+                            path: "./displays/Projet copy/index.html",
+                            description: "Description optionnelle"
+                        },
+                        {
+                            name: "Projet 3",
+                            slug: "projet-3",
+                            path: "./displays/Projet copy 3/index.html",
+                            description: "Description optionnelle"
+                        },
+                        {
+                            name: "Projet 4",
+                            slug: "projet-4",
+                            path: "./displays/Projet copy 4/index.html",
+                            description: "Description optionnelle"
+                        },
+                        {
+                            name: "Cas styles inline",
+                            slug: "styles-inline",
+                            path: "./displays/inline_styles_excel_like/index.html",
+                            description: "Fichier avec de nombreux styles inline"
+                        },
+                        {
+                            name: "Cas texte long",
+                            slug: "texte-long",
+                            path: "./displays/long_text_in_cell/index.html",
+                            refreshInterval: 8000,
+                            description: "Cellule contenant un texte très long"
+                        },
+                        {
+                            name: "Cas formules visibles",
+                            slug: "formules-visibles",
+                            path: "./displays/visible_formulas/index.html",
+                            description: "Cellules contenant des formules"
+                        },
+                        {
+                            name: "Cas tableaux imbriqués",
+                            slug: "tableaux-imbriques",
+                            path: "./displays/nested_tables/index.html",
+                            description: "Tableaux HTML imbriqués"
+                        },
+                        {
+                            name: "Cas cellules vides",
+                            slug: "cellules-vides",
+                            path: "./displays/empty_cells_with_width/index.html",
+                            description: "Cellules vides avec largeur définie"
+                        }
+                    ]
+                };
+
+                // Stockage global de la config
+                window.config = this.config;
+            }
+
+            getSlugFromHash() {
+                const hash = window.location.hash;
+                if (hash && hash.startsWith('#/')) {
+                    return hash.substring(2);
+                }
+                return null;
+            }
+
+            findDisplayBySlug(slug) {
+                return this.config.displays.find(d => d.slug === slug);
+            }
+
+            displayView() {
+                return `
+                    <div class="display-view">
+                        <div class="display-header bg-red color-white">
+                            <a href="../" class="back-button color-white">←</a>
+                            <h3 class="m-0">${window.display.name}</h3>
+                        </div>
+                        <div class="iframe-container">
+                            <iframe src="${window.display.path}" id="display-iframe" class="defaultSize"></iframe>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderDisplay() {
+                const app = document.getElementById('app');
+                const slug = this.getSlugFromHash();
+                window.display = this.findDisplayBySlug(slug);
+
+                app.innerHTML = this.displayView();
+            }
+
+            init() {
+                this.renderDisplay();
+                window.dispatchEvent(new CustomEvent('huddleBoardCoreInitialized'));
+            }
+
+            log(data) {
+                if (window.config.debug) {
+                    console.log(data)
+                }
+            }
+        }
+
+        // Initialisation de l'application
+        window.huddleBoard = new HuddleBoardCore();
+        window.addEventListener('huddleBoardCoreInitialized', (e) => {
+            return onAppLoaded();
+        });
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => window.huddleBoard.init());
+        } else {
+            window.huddleBoard.init();
+        }
+
+        function onAppLoaded() {
+            window.mainIframe = document.getElementById('display-iframe');
+            window.iframeManager = new IframeManager(window.mainIframe);
+            window.iframeScaler = new IframeScaler();
+            window.iframeManager.addOnLoad(() => window.iframeScaler.onload())
+            window.iframeManager.addOnResize(() => window.iframeScaler.applyScale())
+            window.refreshManager = new RefreshManager();
+        }
+
+        class IframeScaler {
+            constructor() {
+                this.isInitialized = false;
+                this.contentW = 1920;
+                this.contentH = 1080;
+                this.iframe = null;
+                this.container = null;
+
+                this.init();
+            }
+
+            init() {
+                if (this.isInitialized) return;
+                this.iframe = window.mainIframe;
+                this.container = window.mainIframe.parentNode;
+                this.onload();
+                this.isInitialized = true;
+            }
+
+            onload() {
+                const doc = this.iframe.contentDocument;
+                if (!doc) return;
+
+                // Masquer les scrollbars
+                const style = doc.createElement('style');
+                style.textContent = 'html, body { overflow: hidden !important; margin: 0; padding: 0; }';
+                doc.head.appendChild(style);
+
+                // Stocker les dimensions du contenu
+                this.contentW = Math.max(doc.documentElement.scrollWidth, doc.body.scrollWidth, 1);
+                this.contentH = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight, 1);
+
+                this.applyScale();
+            }
+
+            applyScale() {
+
+                const containerW = this.container.clientWidth;
+                const containerH = this.container.clientHeight;
+                const scale = Math.min(containerW / this.contentW, containerH / this.contentH, 1);
+
+                this.iframe.style.width = `${this.contentW}px`;
+                this.iframe.style.height = `${this.contentH}px`;
+                this.iframe.style.transform = `scale(${scale})`;
+            }
+        }
+
+        class IframeManager {
+            constructor(iframe) {
+                this.iframe = iframe;
+                this.onLoadCallbacks = [];
+                this.onErrorCallbacks = [];
+                this.onResizeCallbacks = [];
+                this.onBeforeUnloadCallbacks = [];
+                this.isInitialized = false;
+
+                this.init();
+            }
+
+            init() {
+                if (this.isInitialized) return;
+
+                // Event: onload
+                this.iframe.addEventListener('load', () => {
+                    this.onLoadCallbacks.forEach(callback => callback(this.iframe));
+                });
+
+                // Event: onerror
+                this.iframe.addEventListener('error', (error) => {
+                    this.onErrorCallbacks.forEach(callback => callback(error));
+                });
+
+                // Event: beforeunload (pour détecter quand l'iframe va changer de page)
+                this.iframe.contentWindow?.addEventListener('beforeunload', (event) => {
+                    this.onBeforeUnloadCallbacks.forEach(callback => callback(event));
+                });
+
+                window.addEventListener('resize', (event) => {
+                    this.onResizeCallbacks.forEach(callback => callback(event));
+                });
+
+                this.isInitialized = true;
+            }
+
+
+            // Méthodes pour ajouter des callbacks
+            onLoad(callback) {
+                this.onLoadCallbacks.push(callback);
+                return this; // Pour le chaînage
+            }
+
+            onError(callback) {
+                this.onErrorCallbacks.push(callback);
+                return this;
+            }
+
+            onResize(callback) {
+                this.onResizeCallbacks.push(callback);
+                return this;
+            }
+            onBeforeUnload(callback) {
+                this.onBeforeUnloadCallbacks.push(callback);
+                return this;
+            }
+
+            // Méthodes utilitaires
+
+            navigate(url) {
+                this.iframe.src = url;
+            }
+
+            getDocument(iframe) {
+                try {
+                    const doc = iframe.contentDocument || iframe.contentWindow.document;
+                    return doc ? doc.documentElement.innerHTML : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            addOnLoad(callback) {
+                this.onLoadCallbacks.push(callback);
+                return this;
+            }
+            addOnError(callback) {
+                this.onErrorCallbacks.push(callback);
+                return this;
+            }
+            addOnResize(callback) {
+                this.onResizeCallbacks.push(callback);
+                return this;
+            }
+            addOnBeforeUnload(callback) {
+                this.onBeforeUnloadCallbacks.push(callback);
+                return this;
+            }
+            // Méthodes pour retirer des callbacks
+            removeOnLoad(callback) {
+                this.onLoadCallbacks = this.onLoadCallbacks.filter(cb => cb !== callback);
+                return this;
+            }
+
+            removeOnError(callback) {
+                this.onErrorCallbacks = this.onErrorCallbacks.filter(cb => cb !== callback);
+                return this;
+            }
+
+            removeOnResize(callback) {
+                this.onResizeCallbacks = this.onResizeCallbacks.filter(cb => cb !== callback);
+                return this;
+            }
+
+            // Comparaison de contenu
+            compareContent(otherIframe) {
+                // Obtenir les documents des deux iframes
+                const thisDoc = this.getDocument(this.iframe);
+                const otherDoc = this.getDocument(otherIframe);
+                return (thisDoc !== otherDoc);
+            }
+        }
+
+        class PreloadIframe {
+            constructor(url, timeout = 10000) {
+                this.url = url;
+                this.timeout = timeout;
+                this.iframe = null;
+                this.manager = null;
+                this.timeoutId = null;
+                this.onLoadCallbacks = [];
+                this.onErrorCallbacks = [];
+
+                this._init();
+            }
+
+            _init() {
+                this.iframe = document.createElement('iframe');
+                this.iframe.style.display = 'none';
+                this.iframe.tabIndex = -1;
+                document.body.appendChild(this.iframe);
+
+                // Créer un IframeManager temporaire pour réutiliser ses méthodes
+                this.manager = new IframeManager(this.iframe);
+
+                // Configurer les événements
+                this.manager.addOnLoad(() => this._handleLoad());
+                this.manager.addOnError((error) => this._handleError(error));
+
+                // Configurer le timeout
+                this._startTimeout();
+
+                // Charger l'URL
+                this.iframe.src = this.url;
+            }
+
+            _startTimeout() {
+                this.timeoutId = setTimeout(() => {
+                    this._handleError(new Error('Loading timeout'));
+                }, this.timeout);
+            }
+
+            _clearTimeout() {
+                if (this.timeoutId) {
+                    clearTimeout(this.timeoutId);
+                    this.timeoutId = null;
+                }
+            }
+
+            _handleLoad() {
+                this._clearTimeout();
+
+                // Vérifier si c'est une page d'erreur IIS
+                const content = this.manager.getDocument(this.iframe);
+                if (!content || this._isErrorPage(content)) {
+                    this._handleError(new Error('Server error page detected'));
+                    return;
+                }
+
+                // Succès
+                this._triggerCallbacks(this.onLoadCallbacks, this.iframe);
+            }
+
+            _handleError(error) {
+                this._clearTimeout();
+                this._triggerCallbacks(this.onErrorCallbacks, error, this.iframe);
+            }
+
+            _isErrorPage(html) {
+                // Détection minimaliste des erreurs IIS
+                return html.length < 100 ||
+                    html.indexOf('HTTP Error') > -1 ||
+                    html.indexOf('Server Error') > -1 ||
+                    html.indexOf('Service Unavailable') > -1;
+            }
+
+            _triggerCallbacks(callbacks, ...args) {
+                callbacks.forEach(cb => {
+                    try {
+                        cb(...args);
+                    } catch (e) {
+                        console.error('Callback error:', e);
+                    }
+                });
+            }
+
+            addOnLoad(callback) {
+                this.onLoadCallbacks.push(callback);
+                return this;
+            }
+
+            addOnError(callback) {
+                this.onErrorCallbacks.push(callback);
+                return this;
+            }
+
+            destroy() {
+                this._clearTimeout();
+                if (this.iframe?.parentNode) {
+                    this.iframe.parentNode.removeChild(this.iframe);
+                }
+                this.iframe = null;
+                this.manager = null;
+                this.onLoadCallbacks = [];
+                this.onErrorCallbacks = [];
+            }
+        }
+
+        class RefreshManager {
+            constructor() {
+                this.config = {
+                    failInterval: window.config?.refreshFailInterval || 8000,
+                    okInterval: window.display?.refreshInterval || window.config?.defaultRefreshInterval || 30000
+                };
+
+                this.state = {
+                    timer: null,
+                    isRefreshing: false,
+                    currentInterval: this.config.okInterval,
+                    lastContent: null,
+                    lastSuccessDate: null,
+                    lastDiffDate: null
+                };
+
+                this.ui = {
+                    success: null,
+                    error: null,
+                    update: null
+                };
+
+                this._setupUI();
+                this.start();
+            }
+
+            _setupUI() {
+                // Élément de vérification (haut droite)
+                this.ui.success = document.createElement('div');
+                this.ui.success.className = 'bg-white color-dark';
+                this.ui.success.style.cssText = 'position: fixed; top: 60px; right: 10px; z-index: 1000; padding: 8px 12px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);';
+                document.body.appendChild(this.ui.success);
+
+                // Élément d'erreur (bas gauche)
+                this.ui.error = document.createElement('div');
+                this.ui.error.className = 'bg-red color-white';
+                this.ui.error.style.cssText = 'position: fixed; bottom: 10px; left: 10px; z-index: 1000; padding: 8px 12px; border-radius: 4px; display: none;';
+                document.body.appendChild(this.ui.error);
+
+                // Élément de mise à jour (bas droite)
+                this.ui.update = document.createElement('div');
+                this.ui.update.className = 'bg-dark color-white';
+                this.ui.update.style.cssText = 'position: fixed; bottom: 10px; right: 10px; z-index: 1000; padding: 8px 12px; border-radius: 4px; display: none;';
+                document.body.appendChild(this.ui.update);
+            }
+
+            start() {
+                this.stop();
+                this._scheduleRefresh(0); // Démarrer immédiatement
+            }
+
+            stop() {
+                if (this.state.timer) {
+                    clearTimeout(this.state.timer);
+                    this.state.timer = null;
+                }
+            }
+
+            _scheduleRefresh(delay = null) {
+                this.stop();
+                const interval = delay ?? this.state.currentInterval;
+                this.state.timer = setTimeout(() => this._refresh(), interval);
+            }
+
+            async _refresh() {
+                if (this.state.isRefreshing) return;
+
+                this.state.isRefreshing = true;
+                const url = this._buildUrl();
+                const preloader = new PreloadIframe(url);
+
+                preloader
+                    .addOnLoad((iframe) => this._handleSuccess(iframe, url, preloader))
+                    .addOnError((error) => this._handleError(error, preloader));
+            }
+
+            _buildUrl() {
+                const base = window.display.path;
+                const separator = base.includes('?') ? '&' : '?';
+                return `${base}${separator}t=${Date.now()}`;
+            }
+
+            _handleSuccess(iframe, url, preloader) {
+                try {
+                    // Récupérer le contenu via IframeManager
+                    const manager = new IframeManager(iframe);
+                    const newContent = manager.getDocument(iframe);
+
+                    if (!newContent) {
+                        this._handleError(new Error('Empty content'), preloader);
+                        return;
+                    }
+
+                    // Mettre à jour les dates
+                    this.state.lastSuccessDate = new Date();
+                    this._notifySuccess();
+
+                    // Masquer l'erreur si elle était affichée
+                    this.ui.error.style.display = 'none';
+
+                    // Vérifier si le contenu a changé
+                    const contentChanged = this.state.lastContent &&
+                        this.state.lastContent !== newContent;
+
+                    if (contentChanged) {
+                        this.state.lastContent = newContent;
+                        this.state.lastDiffDate = new Date();
+                        this._notifyContentUpdate();
+                        window.iframeManager.navigate(url);
+                    } else if (!this.state.lastContent) {
+                        // Premier chargement
+                        this.state.lastContent = newContent;
+                    }
+
+                    // Planifier le prochain refresh avec l'intervalle normal
+                    this.state.currentInterval = this.config.okInterval;
+
+                } finally {
+                    preloader.destroy();
+                    this.state.isRefreshing = false;
+                    this._scheduleRefresh();
+                }
+            }
+
+            _handleError(error, preloader) {
+                try {
+                    console.error('Refresh error:', error);
+                    this._notifyError();
+
+                    // Utiliser l'intervalle d'erreur pour le prochain essai
+                    this.state.currentInterval = this.config.failInterval;
+
+                } finally {
+                    preloader.destroy();
+                    this.state.isRefreshing = false;
+                    this._scheduleRefresh();
+                }
+            }
+
+            _notifySuccess() {
+                const date = this.state.lastSuccessDate.toLocaleString();
+                this.ui.success.textContent = `Dernière vérification : ${date}`;
+            }
+
+            _notifyContentUpdate() {
+                const date = this.state.lastDiffDate.toLocaleString();
+                this.ui.update.textContent = `Contenu mis à jour : ${date}`;
+                this.ui.update.style.display = 'block';
+            }
+
+            _notifyError() {
+                const retrySec = Math.round(this.state.currentInterval / 1000);
+                this.ui.error.textContent = `Erreur de connexion. Nouvelle tentative dans ${retrySec}s`;
+                this.ui.error.style.display = 'block';
+            }
+
+            // Méthodes publiques pour accéder à l'état
+            getLastSuccessDate() {
+                return this.state.lastSuccessDate;
+            }
+
+            getLastDiffDate() {
+                return this.state.lastDiffDate;
+            }
+
+            isRefreshing() {
+                return this.state.isRefreshing;
+            }
+
+            destroy() {
+                this.stop();
+                // Nettoyer les éléments UI
+                Object.values(this.ui).forEach(el => {
+                    if (el && el.parentNode) {
+                        el.parentNode.removeChild(el);
+                    }
+                });
+            }
+        }
+
+    </script>
+</body>
+
+</html>
