@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -64,70 +62,8 @@
     <h1>HuddleBoard</h1>
     <div class="container" id="cards-container"></div>
     
+    <script src="config.js"></script>
     <script>
-        const config = {
-            defaultRefreshInterval: 30000,
-            retryDelay: 120000,
-            displays: [
-                {
-                    name: "Projet",
-                    slug: "projet",
-                    path: "projects/Projet/index.html",
-                    refreshInterval: 30000,
-                    description: "Description optionnelle"
-                },
-                {
-                    name: "OFFLINE 2",
-                    slug: "offline2",
-                    path: "./projects/Projet copy/index.html",
-                    description: "Description optionnelle"
-                },
-                {
-                    name: "Projet 3",
-                    slug: "projet-3",
-                    path: "./projects/Projet copy 3/index.html",
-                    description: "Description optionnelle"
-                },
-                {
-                    name: "Projet 4",
-                    slug: "projet-4",
-                    path: "./projects/Projet copy 4/index.html",
-                    description: "Description optionnelle"
-                },
-                {
-                    name: "Cas styles inline",
-                    slug: "styles-inline",
-                    path: "./projects/inline_styles_excel_like/index.html",
-                    description: "Fichier avec de nombreux styles inline"
-                },
-                {
-                    name: "Cas texte long",
-                    slug: "texte-long",
-                    path: "./projects/long_text_in_cell/index.html",
-                    refreshInterval: 8000,
-                    description: "Cellule contenant un texte très long"
-                },
-                {
-                    name: "Cas formules visibles",
-                    slug: "formules-visibles",
-                    path: "./projects/visible_formulas/index.html",
-                    description: "Cellules contenant des formules"
-                },
-                {
-                    name: "Cas tableaux imbriqués",
-                    slug: "tableaux-imbriques",
-                    path: "./projects/nested_tables/index.html",
-                    description: "Tableaux HTML imbriqués"
-                },
-                {
-                    name: "Cas cellules vides",
-                    slug: "cellules-vides",
-                    path: "./projects/empty_cells_with_width/index.html",
-                    description: "Cellules vides avec largeur définie"
-                }
-            ]
-        };
-        
         function createCard(display) {
             const card = document.createElement('a');
             card.className = 'card';
@@ -150,7 +86,7 @@
         
         function renderCards() {
             const container = document.getElementById('cards-container');
-            config.displays.forEach(display => {
+            window.AppConfig.displays.forEach(display => {
                 container.appendChild(createCard(display));
             });
         }
