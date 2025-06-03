@@ -201,27 +201,25 @@
             async refresh() {
                 const preloadUrl = this.buildUrl();
                 
-                // Vérifier d'abord le status HTTP
-                const isValidResponse = await this.checkHttpStatus(preloadUrl);
-                if (!isValidResponse) {
-                    console.warn('HTTP error detected, skipping refresh');
-                    return;
-                }
-                
-                const preloader = new PreloadService(preloadUrl);
-                
-                preloader.onLoad((iframe) => {
-                    const newContent = this.getIframeContent(iframe);
+                try {
+                    const response = await fetch(preloadUrl, { 
+                        cache: 'no-cache'
+                    });
+                    
+                    if (!response.ok) {
+                        console.warn('HTTP error detected, skipping refresh');
+                        return;
+                    }
+                    
+                    const newContent = await response.text();
                     
                     if (!newContent) {
-                        preloader.destroy();
                         return;
                     }
                     
                     // Premier chargement : juste initialiser
                     if (!this.lastContent) {
                         this.lastContent = newContent;
-                        preloader.destroy();
                         return;
                     }
                     
@@ -231,25 +229,8 @@
                         this.iframe.src = preloadUrl;
                     }
                     
-                    preloader.destroy();
-                });
-
-                preloader.onError(() => {
-                    console.warn('Preloader error detected');
-                    preloader.destroy();
-                });
-            }
-
-            async checkHttpStatus(url) {
-                try {
-                    const response = await fetch(url, { 
-                        method: 'GET',
-                        cache: 'no-cache'
-                    });
-                    return response.ok;
                 } catch (error) {
                     console.warn('Fetch error:', error.message);
-                    return false;
                 }
             }
 
@@ -257,70 +238,6 @@
                 const base = this.display.path;
                 const separator = base.includes('?') ? '&' : '?';
                 return `${base}${separator}t=${Date.now()}`;
-            }
-
-            getIframeContent(iframe) {
-                const doc = iframe.contentDocument || iframe.contentWindow.document;
-                return doc?.documentElement.innerHTML || null;
-            }
-        }
-
-        class PreloadService {
-            constructor(url, timeout = 10000) {
-                this.timeout = timeout;
-                this.iframe = null;
-                this.timeoutId = null;
-                this.onLoadCallback = null;
-                this.onErrorCallback = null;
-
-                this.init(url);
-            }
-
-            init(url) {
-                this.iframe = document.createElement('iframe');
-                this.iframe.style.display = 'none';
-                document.body.appendChild(this.iframe);
-
-                this.iframe.addEventListener('load', () => this.handleLoad());
-                this.iframe.addEventListener('error', (error) => this.handleError(error));
-
-                this.timeoutId = setTimeout(() => this.handleError(new Error('Loading timeout')), this.timeout);
-                this.iframe.src = url;
-            }
-
-            handleLoad() {
-                this.clearTimeout();
-                this.onLoadCallback?.(this.iframe);
-            }
-
-            handleError(error) {
-                this.clearTimeout();
-                this.onErrorCallback?.(error);
-            }
-
-            clearTimeout() {
-                if (this.timeoutId) {
-                    clearTimeout(this.timeoutId);
-                    this.timeoutId = null;
-                }
-            }
-
-            onLoad(callback) {
-                this.onLoadCallback = callback;
-                return this;
-            }
-
-            onError(callback) {
-                this.onErrorCallback = callback;
-                return this;
-            }
-
-            destroy() {
-                this.clearTimeout();
-                this.iframe?.parentNode?.removeChild(this.iframe);
-                this.iframe = null;
-                this.onLoadCallback = null;
-                this.onErrorCallback = null;
             }
         }
 
