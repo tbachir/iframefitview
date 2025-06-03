@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="UTF-8">
     <title>HuddleBoard Display</title>
@@ -56,26 +57,16 @@
         }
     </style>
 </head>
+
 <body>
     <div id="app"></div>
-    
+
     <script src="../config.js"></script>
     <script>
         class Core {
             constructor() {
                 this.display = null;
             }
-
-            getSlugFromHash() {
-                const hash = window.location.hash;
-                return hash?.startsWith('#/') ? hash.substring(2) : null;
-            }
-
-            findDisplayBySlug(slug) {
-                const displays = window.AppConfig?.displays || [];
-                return displays.find(d => d?.slug === slug);
-            }
-
             init() {
                 // Validation config minimale
                 if (!window.AppConfig?.displays) {
@@ -88,9 +79,10 @@
                     return;
                 }
 
-                const slug = this.getSlugFromHash();
-                this.display = this.findDisplayBySlug(slug);
-                
+                const hash = window.location.hash;
+                const slug = hash?.startsWith('#/') ? hash.substring(2) : null;
+                this.display = window.AppConfig.displays.find(d => d?.slug === slug);
+
                 if (this.display) {
                     const displayManager = new DisplayManager(this.display);
                     displayManager.render();
@@ -114,9 +106,9 @@
                         <iframe src="${this.display.path}" id="display-iframe"></iframe>
                     </div>
                 `;
-                
+
                 this.iframe = document.getElementById('display-iframe');
-                
+
                 // Initialiser les services
                 new ScaleHandler(this.iframe);
                 new RefreshService(this.display, this.iframe);
@@ -155,7 +147,7 @@
                     doc.body.offsetWidth,
                     1
                 );
-                
+
                 this.contentH = Math.max(
                     doc.documentElement.scrollHeight,
                     doc.documentElement.offsetHeight,
@@ -189,9 +181,17 @@
                 this.iframe = iframe;
                 this.interval = display.refreshInterval || window.AppConfig?.defaultRefreshInterval || 30000;
                 this.timer = null;
-                this.lastContent = null;
-
+                this.lastHash = null;
                 this.start();
+            }
+
+            async calculateHash(text) {
+                if (typeof text !== 'string') return '0';
+                let hash = 5381;
+                for (let i = 0; i < text.length; i++) {
+                    hash = ((hash << 5) + hash) ^ text.charCodeAt(i);
+                }
+                return (hash >>> 0).toString(16);
             }
 
             start() {
@@ -200,35 +200,37 @@
 
             async refresh() {
                 const preloadUrl = this.buildUrl();
-                
+
                 try {
-                    const response = await fetch(preloadUrl, { 
+                    const response = await fetch(preloadUrl, {
+                        method: 'GET',
                         cache: 'no-cache'
                     });
-                    
+
                     if (!response.ok) {
                         console.warn('HTTP error detected, skipping refresh');
                         return;
                     }
-                    
+
                     const newContent = await response.text();
-                    
                     if (!newContent) {
                         return;
                     }
-                    
+
+                    const newHash = this.calculateHash(newContent);
+
                     // Premier chargement : juste initialiser
-                    if (!this.lastContent) {
-                        this.lastContent = newContent;
+                    if (!this.lastHash) {
+                        this.lastHash = newHash;
                         return;
                     }
-                    
+
                     // Changement détecté : utiliser la même URL que le preload
-                    if (newContent !== this.lastContent) {
-                        this.lastContent = newContent;
+                    if (newHash !== this.lastHash) {
+                        this.lastHash = newHash;
                         this.iframe.src = preloadUrl;
                     }
-                    
+
                 } catch (error) {
                     console.warn('Fetch error:', error.message);
                 }
@@ -250,4 +252,5 @@
         }
     </script>
 </body>
+
 </html>
