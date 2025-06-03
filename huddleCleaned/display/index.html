@@ -185,7 +185,12 @@
                 this.iframe.addEventListener('load', () => {
                     setTimeout(() => this.onLoad(), 150);
                 });
-                window.addEventListener('resize', () => this.applyScale());
+                // AJOUT : Debounce pour éviter les calculs répétés
+                let resizeTimeout;
+                window.addEventListener('resize', () => {
+                    clearTimeout(resizeTimeout);
+                    resizeTimeout = setTimeout(() => this.applyScale(), 100);
+                });
             }
 
             onLoad() {
@@ -239,6 +244,8 @@
                 this.interval = display.refreshInterval || window.AppConfig?.defaultRefreshInterval || 30000;
                 this.timer = null;
                 this.lastHash = null;
+                // AJOUT : Flag de protection pour éviter les refresh simultanés
+                this.isRefreshing = false;
                 this.start();
             }
 
@@ -257,9 +264,13 @@
             }
 
             async refresh() {
-                const preloadUrl = this.buildUrl();
-                const now = new Date();
+                // AJOUT : Protection contre les refresh simultanés
+                if (this.isRefreshing) return;
+                this.isRefreshing = true;
+                
                 try {
+                    const preloadUrl = this.buildUrl();
+                    const now = new Date();
                     const response = await fetch(preloadUrl, { method: 'GET', cache: 'no-cache' });
                     if (!response.ok) {
                         showStatusBanner(undefined, false);
@@ -280,6 +291,9 @@
                     }
                 } catch (error) {
                     showStatusBanner(undefined, false);
+                } finally {
+                    // AJOUT : Libération du verrou dans tous les cas
+                    this.isRefreshing = false;
                 }
             }
 
