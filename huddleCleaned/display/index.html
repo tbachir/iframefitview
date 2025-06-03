@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <meta charset="UTF-8">
     <title>HuddleBoard Display</title>
@@ -84,6 +83,13 @@
         .status-fail {
             background: #dc2626;
         }
+
+        .health-banner {
+            left: 10px;
+            bottom: 10px;
+            font-size: 0.8em;
+            background: rgba(0, 0, 0, 0.6);
+        }
     </style>
 </head>
 
@@ -92,12 +98,92 @@
 
     <script src="../config.js"></script>
     <script>
+        // Système de monitoring de santé
+        class HealthMonitor {
+            constructor() {
+                this.stats = {
+                    startTime: Date.now(),
+                    refreshCount: 0,
+                    errorCount: 0,
+                    lastError: null,
+                    memoryWarnings: 0
+                };
+                this.startMonitoring();
+            }
+
+            startMonitoring() {
+                // Vérification de la santé toutes les 30 secondes
+                setInterval(() => {
+                    this.checkHealth();
+                    this.updateHealthBanner();
+                }, 30000);
+
+                // Reload préventif toutes les 12 heures
+                setInterval(() => {
+                    console.log('Reload préventif après 12h');
+                    window.location.reload();
+                }, 12 * 60 * 60 * 1000);
+            }
+
+            checkHealth() {
+                // Vérifier l'utilisation mémoire si disponible
+                if (performance.memory) {
+                    const usedMB = performance.memory.usedJSHeapSize / 1048576;
+                    const limitMB = performance.memory.jsHeapSizeLimit / 1048576;
+                    const usage = (usedMB / limitMB) * 100;
+                    
+                    if (usage > 80) {
+                        this.stats.memoryWarnings++;
+                        console.warn(`Mémoire élevée: ${usage.toFixed(1)}%`);
+                        
+                        // Reload si trop de warnings
+                        if (this.stats.memoryWarnings > 5) {
+                            console.log('Reload pour libérer la mémoire');
+                            window.location.reload();
+                        }
+                    }
+                }
+            }
+
+            updateHealthBanner() {
+                const banner = getOrCreateBanner('health-banner', 'banner health-banner');
+                const uptime = Math.floor((Date.now() - this.stats.startTime) / 1000 / 60);
+                banner.textContent = `Uptime: ${uptime}m | Refresh: ${this.stats.refreshCount} | Err: ${this.stats.errorCount}`;
+            }
+
+            recordRefresh() {
+                this.stats.refreshCount++;
+            }
+
+            recordError(error) {
+                this.stats.errorCount++;
+                this.stats.lastError = error;
+                console.error('Erreur enregistrée:', error);
+            }
+        }
+
+        // Instance globale du monitor
+        const healthMonitor = new HealthMonitor();
+
         class Core {
             constructor() {
                 this.display = null;
+                this.displayManager = null;
             }
+
             init() {
-                // Validation config minimale
+                // Gestion des erreurs globales
+                window.addEventListener('error', (e) => {
+                    console.error('Erreur globale:', e);
+                    healthMonitor.recordError(e);
+                });
+
+                window.addEventListener('unhandledrejection', (e) => {
+                    console.error('Promise rejetée:', e);
+                    healthMonitor.recordError(e);
+                });
+
+                // Validation config
                 if (!window.AppConfig?.displays) {
                     document.getElementById('app').innerHTML = `
                         <div style="padding: 50px; text-align: center; font-family: Arial;">
@@ -113,8 +199,14 @@
                 this.display = window.AppConfig.displays.find(d => d?.slug === slug);
 
                 if (this.display) {
-                    const displayManager = new DisplayManager(this.display);
-                    displayManager.render();
+                    this.displayManager = new DisplayManager(this.display);
+                    this.displayManager.render();
+                }
+            }
+
+            cleanup() {
+                if (this.displayManager) {
+                    this.displayManager.cleanup();
                 }
             }
         }
@@ -151,6 +243,8 @@
             constructor(display) {
                 this.display = display;
                 this.iframe = null;
+                this.scaleHandler = null;
+                this.refreshService = null;
             }
 
             render() {
@@ -166,9 +260,38 @@
 
                 this.iframe = document.getElementById('display-iframe');
 
+                // Timeout pour le chargement de l'iframe
+                const loadTimeout = setTimeout(() => {
+                    console.error('Timeout chargement iframe');
+                    healthMonitor.recordError('Iframe load timeout');
+                    this.reloadIframe();
+                }, 30000);
+
+                this.iframe.addEventListener('load', () => {
+                    clearTimeout(loadTimeout);
+                });
+
+                this.iframe.addEventListener('error', (e) => {
+                    console.error('Erreur iframe:', e);
+                    healthMonitor.recordError('Iframe error');
+                    setTimeout(() => this.reloadIframe(), 5000);
+                });
+
                 // Initialiser les services
-                new ScaleHandler(this.iframe);
-                new RefreshService(this.display, this.iframe);
+                this.scaleHandler = new ScaleHandler(this.iframe);
+                this.refreshService = new RefreshService(this.display, this.iframe);
+            }
+
+            reloadIframe() {
+                if (this.iframe) {
+                    console.log('Rechargement iframe...');
+                    this.iframe.src = this.iframe.src;
+                }
+            }
+
+            cleanup() {
+                if (this.scaleHandler) this.scaleHandler.cleanup();
+                if (this.refreshService) this.refreshService.cleanup();
             }
         }
 
@@ -177,63 +300,86 @@
                 this.iframe = iframe;
                 this.contentW = window.innerWidth;
                 this.contentH = window.innerHeight;
+                this.resizeTimeout = null;
+                this.loadHandler = null;
+                this.resizeHandler = null;
 
                 this.init();
             }
 
             init() {
-                this.iframe.addEventListener('load', () => {
+                this.loadHandler = () => {
                     setTimeout(() => this.onLoad(), 150);
-                });
-                // AJOUT : Debounce pour éviter les calculs répétés
-                let resizeTimeout;
-                window.addEventListener('resize', () => {
-                    clearTimeout(resizeTimeout);
-                    resizeTimeout = setTimeout(() => this.applyScale(), 100);
-                });
+                };
+                this.iframe.addEventListener('load', this.loadHandler);
+                
+                this.resizeHandler = () => {
+                    clearTimeout(this.resizeTimeout);
+                    this.resizeTimeout = setTimeout(() => this.applyScale(), 100);
+                };
+                window.addEventListener('resize', this.resizeHandler);
             }
 
             onLoad() {
-                const doc = this.iframe.contentDocument;
-                if (!doc) return;
+                try {
+                    const doc = this.iframe.contentDocument;
+                    if (!doc) return;
 
-                // Masquer les scrollbars et mesurer le contenu
-                doc.head.appendChild(Object.assign(doc.createElement('style'), {
-                    textContent: 'html, body { overflow: hidden !important; margin: 0; padding: 0; }'
-                }));
+                    doc.head.appendChild(Object.assign(doc.createElement('style'), {
+                        textContent: 'html, body { overflow: hidden !important; margin: 0; padding: 0; }'
+                    }));
 
-                this.contentW = Math.max(
-                    doc.documentElement.scrollWidth,
-                    doc.documentElement.offsetWidth,
-                    doc.body.scrollWidth,
-                    doc.body.offsetWidth,
-                    1
-                );
+                    this.contentW = Math.max(
+                        doc.documentElement.scrollWidth,
+                        doc.documentElement.offsetWidth,
+                        doc.body.scrollWidth,
+                        doc.body.offsetWidth,
+                        1
+                    );
 
-                this.contentH = Math.max(
-                    doc.documentElement.scrollHeight,
-                    doc.documentElement.offsetHeight,
-                    doc.body.scrollHeight,
-                    doc.body.offsetHeight,
-                    1
-                );
+                    this.contentH = Math.max(
+                        doc.documentElement.scrollHeight,
+                        doc.documentElement.offsetHeight,
+                        doc.body.scrollHeight,
+                        doc.body.offsetHeight,
+                        1
+                    );
 
-                this.applyScale();
+                    this.applyScale();
+                } catch (e) {
+                    console.error('Erreur dans onLoad:', e);
+                    healthMonitor.recordError(e);
+                }
             }
 
             applyScale() {
-                const containerW = window.innerWidth;
-                const containerH = window.innerHeight;
-                const scale = Math.min(containerW / this.contentW, containerH / this.contentH);
+                try {
+                    const containerW = window.innerWidth;
+                    const containerH = window.innerHeight;
+                    const scale = Math.min(containerW / this.contentW, containerH / this.contentH);
 
-                Object.assign(this.iframe.style, {
-                    width: `${this.contentW}px`,
-                    height: `${this.contentH}px`,
-                    transform: `scale(${scale})`,
-                    left: `${(containerW - this.contentW * scale) / 2}px`,
-                    top: `${(containerH - this.contentH * scale) / 2}px`,
-                    position: 'absolute'
-                });
+                    Object.assign(this.iframe.style, {
+                        width: `${this.contentW}px`,
+                        height: `${this.contentH}px`,
+                        transform: `scale(${scale})`,
+                        left: `${(containerW - this.contentW * scale) / 2}px`,
+                        top: `${(containerH - this.contentH * scale) / 2}px`,
+                        position: 'absolute'
+                    });
+                } catch (e) {
+                    console.error('Erreur dans applyScale:', e);
+                    healthMonitor.recordError(e);
+                }
+            }
+
+            cleanup() {
+                if (this.loadHandler) {
+                    this.iframe.removeEventListener('load', this.loadHandler);
+                }
+                if (this.resizeHandler) {
+                    window.removeEventListener('resize', this.resizeHandler);
+                }
+                clearTimeout(this.resizeTimeout);
             }
         }
 
@@ -244,8 +390,9 @@
                 this.interval = display.refreshInterval || window.AppConfig?.defaultRefreshInterval || 30000;
                 this.timer = null;
                 this.lastHash = null;
-                // AJOUT : Flag de protection pour éviter les refresh simultanés
                 this.isRefreshing = false;
+                this.consecutiveErrors = 0;
+                this.abortController = null;
                 this.start();
             }
 
@@ -264,37 +411,78 @@
             }
 
             async refresh() {
-                // AJOUT : Protection contre les refresh simultanés
                 if (this.isRefreshing) return;
                 this.isRefreshing = true;
+                
+                // Annuler la requête précédente si elle est toujours en cours
+                if (this.abortController) {
+                    this.abortController.abort();
+                }
+                
+                this.abortController = new AbortController();
+                const timeoutId = setTimeout(() => this.abortController.abort(), 10000);
                 
                 try {
                     const preloadUrl = this.buildUrl();
                     const now = new Date();
-                    const response = await fetch(preloadUrl, { method: 'GET', cache: 'no-cache' });
+                    
+                    const response = await fetch(preloadUrl, { 
+                        method: 'GET', 
+                        cache: 'no-cache',
+                        signal: this.abortController.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
                     if (!response.ok) {
-                        showStatusBanner(undefined, false);
-                        return;
+                        throw new Error(`HTTP ${response.status}`);
                     }
+                    
                     showStatusBanner(now, true);
+                    this.consecutiveErrors = 0;
+                    
                     const newContent = await response.text();
                     if (!newContent) return;
+                    
                     const newHash = this.calculateHash(newContent);
                     if (!this.lastHash) {
                         this.lastHash = newHash;
                         return;
                     }
+                    
                     if (newHash !== this.lastHash) {
                         this.lastHash = newHash;
                         this.iframe.src = preloadUrl;
                         showModifBanner(now);
                     }
+                    
+                    healthMonitor.recordRefresh();
+                    
                 } catch (error) {
-                    showStatusBanner(undefined, false);
+                    clearTimeout(timeoutId);
+                    
+                    if (error.name !== 'AbortError') {
+                        this.consecutiveErrors++;
+                        showStatusBanner(undefined, false);
+                        healthMonitor.recordError(error);
+                        
+                        // Si trop d'erreurs consécutives, augmenter l'intervalle
+                        if (this.consecutiveErrors > 5) {
+                            console.log('Trop d\'erreurs, ralentissement du refresh');
+                            this.slowDown();
+                        }
+                    }
                 } finally {
-                    // AJOUT : Libération du verrou dans tous les cas
                     this.isRefreshing = false;
+                    this.abortController = null;
                 }
+            }
+
+            slowDown() {
+                clearInterval(this.timer);
+                // Doubler l'intervalle avec un maximum de 5 minutes
+                this.interval = Math.min(this.interval * 2, 300000);
+                this.timer = setInterval(() => this.refresh(), this.interval);
             }
 
             buildUrl() {
@@ -302,10 +490,23 @@
                 const separator = base.includes('?') ? '&' : '?';
                 return `${base}${separator}t=${Date.now()}`;
             }
+
+            cleanup() {
+                clearInterval(this.timer);
+                if (this.abortController) {
+                    this.abortController.abort();
+                }
+            }
         }
 
         // Initialisation
         const core = new Core();
+        
+        // Cleanup avant déchargement
+        window.addEventListener('beforeunload', () => {
+            core.cleanup();
+        });
+        
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => core.init());
         } else {
@@ -313,5 +514,4 @@
         }
     </script>
 </body>
-
 </html>
