@@ -1,12 +1,4 @@
 window.AppConfig = {
-    // Intervalles de rafraîchissement
-    defaultRefreshInterval: 10000,
-    refreshFailInterval: 8000,
-    
-    // Configuration debug
-    debug: true,
-    
-    // Configuration des affichages
     displays: [
         {
             name: "Projet",
@@ -44,7 +36,7 @@ window.AppConfig = {
             slug: "texte-long",
             path: "./displays/long_text_in_cell/index.html",
             refreshInterval: 8000,
-            description: "Cellule contenant un texte très long"
+            description: "Cellule contenant un texte très long, Cellule contenant un texte très long, Cellule contenant un texte très long"
         },
         {
             name: "Cas formules visibles",
