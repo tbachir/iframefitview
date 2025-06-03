@@ -72,10 +72,22 @@
             }
 
             findDisplayBySlug(slug) {
-                return window.AppConfig.displays.find(d => d.slug === slug);
+                const displays = window.AppConfig?.displays || [];
+                return displays.find(d => d?.slug === slug);
             }
 
             init() {
+                // Validation config minimale
+                if (!window.AppConfig?.displays) {
+                    document.getElementById('app').innerHTML = `
+                        <div style="padding: 50px; text-align: center; font-family: Arial;">
+                            <h2>Configuration manquante</h2>
+                            <a href="../" style="color: #dc2626;">← Retour</a>
+                        </div>
+                    `;
+                    return;
+                }
+
                 const slug = this.getSlugFromHash();
                 this.display = this.findDisplayBySlug(slug);
                 
@@ -175,7 +187,7 @@
             constructor(display, iframe) {
                 this.display = display;
                 this.iframe = iframe;
-                this.interval = display.refreshInterval || window.AppConfig.defaultRefreshInterval;
+                this.interval = display.refreshInterval || window.AppConfig?.defaultRefreshInterval || 30000;
                 this.timer = null;
                 this.lastContent = null;
 
@@ -216,7 +228,7 @@
                     // Changement détecté : utiliser la même URL que le preload
                     if (newContent !== this.lastContent) {
                         this.lastContent = newContent;
-                        this.iframe.src = preloadUrl; // ✅ MÊME URL
+                        this.iframe.src = preloadUrl;
                     }
                     
                     preloader.destroy();
@@ -231,13 +243,13 @@
             async checkHttpStatus(url) {
                 try {
                     const response = await fetch(url, { 
-                        method: 'HEAD',
+                        method: 'GET',
                         cache: 'no-cache'
                     });
-                    return response.ok; // true si status 200-299
+                    return response.ok;
                 } catch (error) {
                     console.warn('Fetch error:', error.message);
-                    return false; // Erreur réseau, serveur inaccessible, etc.
+                    return false;
                 }
             }
 
