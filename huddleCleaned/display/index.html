@@ -28,14 +28,9 @@
         }
 
         .back-button {
-            border: none;
-            background: none;
             color: white;
-            padding: 0.5rem;
-            cursor: pointer;
-            font-size: 1.5rem;
-            text-decoration: none;
             margin-right: 10px;
+            text-decoration: none;
         }
 
         .iframe-container {
@@ -54,6 +49,40 @@
             border: none;
             background: transparent;
             transform-origin: 0 0;
+        }
+
+        .banner {
+            position: absolute;
+            background: rgba(220, 38, 38, 0.82);
+            color: #fff;
+            z-index: 1000;
+            border-radius: 5px;
+            font-size: 1em;
+            padding: 4px 10px;
+        }
+
+        .modif-banner {
+            right: 10px;
+            bottom: 10px;
+        }
+
+        .status-banner {
+            right: 10px;
+            top: 10px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            margin-left: 6px;
+            background: #10b981;
+            border: 1.5px solid #fff2;
+        }
+
+        .status-fail {
+            background: #dc2626;
         }
     </style>
 </head>
@@ -88,6 +117,34 @@
                     displayManager.render();
                 }
             }
+        }
+
+        function getOrCreateBanner(id, classes) {
+            let el = document.getElementById(id);
+            if (!el) {
+                el = document.createElement('div');
+                el.id = id;
+                el.className = classes;
+                document.body.appendChild(el);
+            }
+            return el;
+        }
+
+        function formatTime(date) {
+            return date
+                ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : '—';
+        }
+
+        function showModifBanner(date = new Date()) {
+            getOrCreateBanner('modif-banner', 'banner modif-banner').textContent =
+                `Modifié à ${formatTime(date)}`;
+        }
+
+        function showStatusBanner(date, ok = true) {
+            showStatusBanner.lastDate = ok && date ? date : showStatusBanner.lastDate;
+            const el = getOrCreateBanner('status-banner', 'banner status-banner');
+            el.innerHTML = `${formatTime(showStatusBanner.lastDate)}<span class="status-indicator${ok ? '' : ' status-fail'}"></span>`;
         }
 
         class DisplayManager {
@@ -185,7 +242,7 @@
                 this.start();
             }
 
-            async calculateHash(text) {
+            calculateHash(text) {
                 if (typeof text !== 'string') return '0';
                 let hash = 5381;
                 for (let i = 0; i < text.length; i++) {
@@ -195,44 +252,34 @@
             }
 
             start() {
+                this.refresh();
                 this.timer = setInterval(() => this.refresh(), this.interval);
             }
 
             async refresh() {
                 const preloadUrl = this.buildUrl();
-
+                const now = new Date();
                 try {
-                    const response = await fetch(preloadUrl, {
-                        method: 'GET',
-                        cache: 'no-cache'
-                    });
-
+                    const response = await fetch(preloadUrl, { method: 'GET', cache: 'no-cache' });
                     if (!response.ok) {
-                        console.warn('HTTP error detected, skipping refresh');
+                        showStatusBanner(undefined, false);
                         return;
                     }
-
+                    showStatusBanner(now, true);
                     const newContent = await response.text();
-                    if (!newContent) {
-                        return;
-                    }
-
+                    if (!newContent) return;
                     const newHash = this.calculateHash(newContent);
-
-                    // Premier chargement : juste initialiser
                     if (!this.lastHash) {
                         this.lastHash = newHash;
                         return;
                     }
-
-                    // Changement détecté : utiliser la même URL que le preload
                     if (newHash !== this.lastHash) {
                         this.lastHash = newHash;
                         this.iframe.src = preloadUrl;
+                        showModifBanner(now);
                     }
-
                 } catch (error) {
-                    console.warn('Fetch error:', error.message);
+                    showStatusBanner(undefined, false);
                 }
             }
 
