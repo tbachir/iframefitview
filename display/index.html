@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <meta charset="UTF-8">
     <title>HuddleBoard Display</title>
@@ -14,69 +13,31 @@
             overflow: hidden;
         }
 
-        .text-center {
-            text-align: center;
-        }
-
-        .display-view {
-            height: 100vh;
-            overflow: hidden;
-        }
-
         .display-header {
             position: fixed;
             top: 0;
             left: 0;
-            padding-right: 10px;
+            padding: 10px 15px;
             z-index: 1000;
             display: flex;
             align-items: center;
-            /* gap: 20px; */
+            background: #dc2626;
+            color: white;
             text-transform: uppercase;
         }
 
-        .m-0 {
-            margin: 0;
-        }
-
-        .bg-red {
-            background-color: #dc2626;
-        }
-
-        .bg-white {
-            background-color: #f5f5f5;
-        }
-
-        .bg-dark {
-            background-color: #333;
-        }
-
-        .color-dark {
-            color: #333;
-        }
-
-        .color-white {
-            color: #f5f5f5;
-        }
-
-        .color-red {
-            color: #dc2626;
-        }
-
         .back-button {
-            border: none;
-            padding: 0.5rem;
-            cursor: pointer;
-            font-size: 1.5rem;
+            color: white;
+            margin-right: 10px;
             text-decoration: none;
-            display: inline-block;
         }
 
-        /* Conteneur iframe */
         .iframe-container {
-            position: relative;
-            height: calc(100vh - 50px);
-            margin-top: 50px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 100vw;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -84,606 +45,473 @@
         }
 
         .iframe-container iframe {
-            position: absolute;
             border: none;
             background: transparent;
-            transform-origin: center center;
+            transform-origin: 0 0;
         }
 
-        .iframe-container iframe.defaultSize {
-            height: 100%;
-            width: 100%;
+        .banner {
+            position: absolute;
+            background: rgba(220, 38, 38, 0.82);
+            color: #fff;
+            z-index: 1000;
+            border-radius: 5px;
+            font-size: 1em;
+            padding: 4px 10px;
+        }
+
+        .modif-banner {
+            right: 10px;
+            bottom: 10px;
+        }
+
+        .status-banner {
+            right: 10px;
+            top: 10px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            margin-left: 6px;
+            background: #10b981;
+            border: 1.5px solid #fff2;
+        }
+
+        .status-fail {
+            background: #dc2626;
+        }
+
+        .health-banner {
+            left: 10px;
+            bottom: 10px;
+            font-size: 0.8em;
+            background: rgba(0, 0, 0, 0.6);
         }
     </style>
 </head>
 
-<body class="bg-white color-dark">
+<body>
     <div id="app"></div>
 
+    <script src="../config.js"></script>
     <script>
-        class HuddleBoardCore {
+        // Système de monitoring de santé
+        class HealthMonitor {
             constructor() {
-                this.config = {
-                    defaultRefreshInterval: 30000,
-                    refreshFailInterval: 8000,
-                    debug: true,
-                    displays: [
-                        {
-                            name: "Projet",
-                            slug: "projet",
-                            path: "displays/Projet/index.html",
-                            refreshInterval: 17000,
-                            description: "Description optionnelle"
-                        },
-                        {
-                            name: "OFFLINE 2",
-                            slug: "offline2",
-                            path: "./displays/Projet copy/index.html",
-                            description: "Description optionnelle"
-                        },
-                        {
-                            name: "Projet 3",
-                            slug: "projet-3",
-                            path: "./displays/Projet copy 3/index.html",
-                            description: "Description optionnelle"
-                        },
-                        {
-                            name: "Projet 4",
-                            slug: "projet-4",
-                            path: "./displays/Projet copy 4/index.html",
-                            description: "Description optionnelle"
-                        },
-                        {
-                            name: "Cas styles inline",
-                            slug: "styles-inline",
-                            path: "./displays/inline_styles_excel_like/index.html",
-                            description: "Fichier avec de nombreux styles inline"
-                        },
-                        {
-                            name: "Cas texte long",
-                            slug: "texte-long",
-                            path: "./displays/long_text_in_cell/index.html",
-                            refreshInterval: 8000,
-                            description: "Cellule contenant un texte très long"
-                        },
-                        {
-                            name: "Cas formules visibles",
-                            slug: "formules-visibles",
-                            path: "./displays/visible_formulas/index.html",
-                            description: "Cellules contenant des formules"
-                        },
-                        {
-                            name: "Cas tableaux imbriqués",
-                            slug: "tableaux-imbriques",
-                            path: "./displays/nested_tables/index.html",
-                            description: "Tableaux HTML imbriqués"
-                        },
-                        {
-                            name: "Cas cellules vides",
-                            slug: "cellules-vides",
-                            path: "./displays/empty_cells_with_width/index.html",
-                            description: "Cellules vides avec largeur définie"
-                        }
-                    ]
+                this.stats = {
+                    startTime: Date.now(),
+                    refreshCount: 0,
+                    errorCount: 0,
+                    lastError: null,
+                    memoryWarnings: 0
                 };
-
-                // Stockage global de la config
-                window.config = this.config;
+                this.startMonitoring();
             }
 
-            getSlugFromHash() {
-                const hash = window.location.hash;
-                if (hash && hash.startsWith('#/')) {
-                    return hash.substring(2);
-                }
-                return null;
+            startMonitoring() {
+                // Vérification de la santé toutes les 30 secondes
+                setInterval(() => {
+                    this.checkHealth();
+                    this.updateHealthBanner();
+                }, 30000);
+
+                // Reload préventif toutes les 12 heures
+                setInterval(() => {
+                    console.log('Reload préventif après 12h');
+                    window.location.reload();
+                }, 12 * 60 * 60 * 1000);
             }
 
-            findDisplayBySlug(slug) {
-                return this.config.displays.find(d => d.slug === slug);
-            }
-
-            displayView() {
-                return `
-                    <div class="display-view">
-                        <div class="display-header bg-red color-white">
-                            <a href="../" class="back-button color-white">←</a>
-                            <h3 class="m-0">${window.display.name}</h3>
-                        </div>
-                        <div class="iframe-container">
-                            <iframe src="${window.display.path}" id="display-iframe" class="defaultSize"></iframe>
-                        </div>
-                    </div>
-                `;
-            }
-
-            renderDisplay() {
-                const app = document.getElementById('app');
-                const slug = this.getSlugFromHash();
-                window.display = this.findDisplayBySlug(slug);
-
-                app.innerHTML = this.displayView();
-            }
-
-            init() {
-                this.renderDisplay();
-                window.dispatchEvent(new CustomEvent('huddleBoardCoreInitialized'));
-            }
-
-            log(data) {
-                if (window.config.debug) {
-                    console.log(data)
+            checkHealth() {
+                // Vérifier l'utilisation mémoire si disponible
+                if (performance.memory) {
+                    const usedMB = performance.memory.usedJSHeapSize / 1048576;
+                    const limitMB = performance.memory.jsHeapSizeLimit / 1048576;
+                    const usage = (usedMB / limitMB) * 100;
+                    
+                    if (usage > 80) {
+                        this.stats.memoryWarnings++;
+                        console.warn(`Mémoire élevée: ${usage.toFixed(1)}%`);
+                        
+                        // Reload si trop de warnings
+                        if (this.stats.memoryWarnings > 5) {
+                            console.log('Reload pour libérer la mémoire');
+                            window.location.reload();
+                        }
+                    }
                 }
             }
+
+            updateHealthBanner() {
+                const banner = getOrCreateBanner('health-banner', 'banner health-banner');
+                const uptime = Math.floor((Date.now() - this.stats.startTime) / 1000 / 60);
+                banner.textContent = `Uptime: ${uptime}m | Refresh: ${this.stats.refreshCount} | Err: ${this.stats.errorCount}`;
+            }
+
+            recordRefresh() {
+                this.stats.refreshCount++;
+            }
+
+            recordError(error) {
+                this.stats.errorCount++;
+                this.stats.lastError = error;
+                console.error('Erreur enregistrée:', error);
+            }
         }
 
-        // Initialisation de l'application
-        window.huddleBoard = new HuddleBoardCore();
-        window.addEventListener('huddleBoardCoreInitialized', (e) => {
-            return onAppLoaded();
-        });
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => window.huddleBoard.init());
-        } else {
-            window.huddleBoard.init();
-        }
+        // Instance globale du monitor
+        const healthMonitor = new HealthMonitor();
 
-        function onAppLoaded() {
-            window.mainIframe = document.getElementById('display-iframe');
-            window.iframeManager = new IframeManager(window.mainIframe);
-            window.iframeScaler = new IframeScaler();
-            window.iframeManager.addOnLoad(() => window.iframeScaler.onload())
-            window.iframeManager.addOnResize(() => window.iframeScaler.applyScale())
-            window.refreshManager = new RefreshManager();
-        }
-
-        class IframeScaler {
+        class Core {
             constructor() {
-                this.isInitialized = false;
-                this.contentW = 1920;
-                this.contentH = 1080;
-                this.iframe = null;
-                this.container = null;
-
-                this.init();
+                this.display = null;
+                this.displayManager = null;
             }
 
             init() {
-                if (this.isInitialized) return;
-                this.iframe = window.mainIframe;
-                this.container = window.mainIframe.parentNode;
-                this.onload();
-                this.isInitialized = true;
-            }
-
-            onload() {
-                const doc = this.iframe.contentDocument;
-                if (!doc) return;
-
-                // Masquer les scrollbars
-                const style = doc.createElement('style');
-                style.textContent = 'html, body { overflow: hidden !important; margin: 0; padding: 0; }';
-                doc.head.appendChild(style);
-
-                // Stocker les dimensions du contenu
-                this.contentW = Math.max(doc.documentElement.scrollWidth, doc.body.scrollWidth, 1);
-                this.contentH = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight, 1);
-
-                this.applyScale();
-            }
-
-            applyScale() {
-
-                const containerW = this.container.clientWidth;
-                const containerH = this.container.clientHeight;
-                const scale = Math.min(containerW / this.contentW, containerH / this.contentH, 1);
-
-                this.iframe.style.width = `${this.contentW}px`;
-                this.iframe.style.height = `${this.contentH}px`;
-                this.iframe.style.transform = `scale(${scale})`;
-            }
-        }
-
-        class IframeManager {
-            constructor(iframe) {
-                this.iframe = iframe;
-                this.onLoadCallbacks = [];
-                this.onErrorCallbacks = [];
-                this.onResizeCallbacks = [];
-                this.onBeforeUnloadCallbacks = [];
-                this.isInitialized = false;
-
-                this.init();
-            }
-
-            init() {
-                if (this.isInitialized) return;
-
-                // Event: onload
-                this.iframe.addEventListener('load', () => {
-                    this.onLoadCallbacks.forEach(callback => callback(this.iframe));
+                // Gestion des erreurs globales
+                window.addEventListener('error', (e) => {
+                    console.error('Erreur globale:', e);
+                    healthMonitor.recordError(e);
                 });
 
-                // Event: onerror
-                this.iframe.addEventListener('error', (error) => {
-                    this.onErrorCallbacks.forEach(callback => callback(error));
+                window.addEventListener('unhandledrejection', (e) => {
+                    console.error('Promise rejetée:', e);
+                    healthMonitor.recordError(e);
                 });
 
-                // Event: beforeunload (pour détecter quand l'iframe va changer de page)
-                this.iframe.contentWindow?.addEventListener('beforeunload', (event) => {
-                    this.onBeforeUnloadCallbacks.forEach(callback => callback(event));
-                });
-
-                window.addEventListener('resize', (event) => {
-                    this.onResizeCallbacks.forEach(callback => callback(event));
-                });
-
-                this.isInitialized = true;
-            }
-
-
-            // Méthodes pour ajouter des callbacks
-            onLoad(callback) {
-                this.onLoadCallbacks.push(callback);
-                return this; // Pour le chaînage
-            }
-
-            onError(callback) {
-                this.onErrorCallbacks.push(callback);
-                return this;
-            }
-
-            onResize(callback) {
-                this.onResizeCallbacks.push(callback);
-                return this;
-            }
-            onBeforeUnload(callback) {
-                this.onBeforeUnloadCallbacks.push(callback);
-                return this;
-            }
-
-            // Méthodes utilitaires
-
-            navigate(url) {
-                this.iframe.src = url;
-            }
-
-            getDocument(iframe) {
-                try {
-                    const doc = iframe.contentDocument || iframe.contentWindow.document;
-                    return doc ? doc.documentElement.innerHTML : null;
-                } catch (e) {
-                    return null;
-                }
-            }
-
-            addOnLoad(callback) {
-                this.onLoadCallbacks.push(callback);
-                return this;
-            }
-            addOnError(callback) {
-                this.onErrorCallbacks.push(callback);
-                return this;
-            }
-            addOnResize(callback) {
-                this.onResizeCallbacks.push(callback);
-                return this;
-            }
-            addOnBeforeUnload(callback) {
-                this.onBeforeUnloadCallbacks.push(callback);
-                return this;
-            }
-            // Méthodes pour retirer des callbacks
-            removeOnLoad(callback) {
-                this.onLoadCallbacks = this.onLoadCallbacks.filter(cb => cb !== callback);
-                return this;
-            }
-
-            removeOnError(callback) {
-                this.onErrorCallbacks = this.onErrorCallbacks.filter(cb => cb !== callback);
-                return this;
-            }
-
-            removeOnResize(callback) {
-                this.onResizeCallbacks = this.onResizeCallbacks.filter(cb => cb !== callback);
-                return this;
-            }
-
-            // Comparaison de contenu
-            compareContent(otherIframe) {
-                // Obtenir les documents des deux iframes
-                const thisDoc = this.getDocument(this.iframe);
-                const otherDoc = this.getDocument(otherIframe);
-                return (thisDoc !== otherDoc);
-            }
-        }
-
-        class PreloadIframe {
-            constructor(url, timeout = 10000) {
-                this.url = url;
-                this.timeout = timeout;
-                this.iframe = null;
-                this.manager = null;
-                this.timeoutId = null;
-                this.onLoadCallbacks = [];
-                this.onErrorCallbacks = [];
-
-                this._init();
-            }
-
-            _init() {
-                this.iframe = document.createElement('iframe');
-                this.iframe.style.display = 'none';
-                this.iframe.tabIndex = -1;
-                document.body.appendChild(this.iframe);
-
-                // Créer un IframeManager temporaire pour réutiliser ses méthodes
-                this.manager = new IframeManager(this.iframe);
-
-                // Configurer les événements
-                this.manager.addOnLoad(() => this._handleLoad());
-                this.manager.addOnError((error) => this._handleError(error));
-
-                // Configurer le timeout
-                this._startTimeout();
-
-                // Charger l'URL
-                this.iframe.src = this.url;
-            }
-
-            _startTimeout() {
-                this.timeoutId = setTimeout(() => {
-                    this._handleError(new Error('Loading timeout'));
-                }, this.timeout);
-            }
-
-            _clearTimeout() {
-                if (this.timeoutId) {
-                    clearTimeout(this.timeoutId);
-                    this.timeoutId = null;
-                }
-            }
-
-            _handleLoad() {
-                this._clearTimeout();
-
-                // Vérifier si c'est une page d'erreur IIS
-                const content = this.manager.getDocument(this.iframe);
-                if (!content || this._isErrorPage(content)) {
-                    this._handleError(new Error('Server error page detected'));
+                // Validation config
+                if (!window.AppConfig?.displays) {
+                    document.getElementById('app').innerHTML = `
+                        <div style="padding: 50px; text-align: center; font-family: Arial;">
+                            <h2>Configuration manquante</h2>
+                            <a href="../" style="color: #dc2626;">← Retour</a>
+                        </div>
+                    `;
                     return;
                 }
 
-                // Succès
-                this._triggerCallbacks(this.onLoadCallbacks, this.iframe);
-            }
+                const hash = window.location.hash;
+                const slug = hash?.startsWith('#/') ? hash.substring(2) : null;
+                this.display = window.AppConfig.displays.find(d => d?.slug === slug);
 
-            _handleError(error) {
-                this._clearTimeout();
-                this._triggerCallbacks(this.onErrorCallbacks, error, this.iframe);
-            }
-
-            _isErrorPage(html) {
-                // Détection minimaliste des erreurs IIS
-                return html.length < 100 ||
-                    html.indexOf('HTTP Error') > -1 ||
-                    html.indexOf('Server Error') > -1 ||
-                    html.indexOf('Service Unavailable') > -1;
-            }
-
-            _triggerCallbacks(callbacks, ...args) {
-                callbacks.forEach(cb => {
-                    try {
-                        cb(...args);
-                    } catch (e) {
-                        console.error('Callback error:', e);
-                    }
-                });
-            }
-
-            addOnLoad(callback) {
-                this.onLoadCallbacks.push(callback);
-                return this;
-            }
-
-            addOnError(callback) {
-                this.onErrorCallbacks.push(callback);
-                return this;
-            }
-
-            destroy() {
-                this._clearTimeout();
-                if (this.iframe?.parentNode) {
-                    this.iframe.parentNode.removeChild(this.iframe);
+                if (this.display) {
+                    this.displayManager = new DisplayManager(this.display);
+                    this.displayManager.render();
                 }
-                this.iframe = null;
-                this.manager = null;
-                this.onLoadCallbacks = [];
-                this.onErrorCallbacks = [];
+            }
+
+            cleanup() {
+                if (this.displayManager) {
+                    this.displayManager.cleanup();
+                }
             }
         }
 
-        class RefreshManager {
-            constructor() {
-                this.config = {
-                    failInterval: window.config?.refreshFailInterval || 8000,
-                    okInterval: window.display?.refreshInterval || window.config?.defaultRefreshInterval || 30000
-                };
+        function getOrCreateBanner(id, classes) {
+            let el = document.getElementById(id);
+            if (!el) {
+                el = document.createElement('div');
+                el.id = id;
+                el.className = classes;
+                document.body.appendChild(el);
+            }
+            return el;
+        }
 
-                this.state = {
-                    timer: null,
-                    isRefreshing: false,
-                    currentInterval: this.config.okInterval,
-                    lastContent: null,
-                    lastSuccessDate: null,
-                    lastDiffDate: null
-                };
+        function formatTime(date) {
+            return date
+                ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : '—';
+        }
 
-                this.ui = {
-                    success: null,
-                    error: null,
-                    update: null
-                };
+        function showModifBanner(date = new Date()) {
+            getOrCreateBanner('modif-banner', 'banner modif-banner').textContent =
+                `Modifié à ${formatTime(date)}`;
+        }
 
-                this._setupUI();
-                this.start();
+        function showStatusBanner(date, ok = true) {
+            showStatusBanner.lastDate = ok && date ? date : showStatusBanner.lastDate;
+            const el = getOrCreateBanner('status-banner', 'banner status-banner');
+            el.innerHTML = `${formatTime(showStatusBanner.lastDate)}<span class="status-indicator${ok ? '' : ' status-fail'}"></span>`;
+        }
+
+        class DisplayManager {
+            constructor(display) {
+                this.display = display;
+                this.iframe = null;
+                this.scaleHandler = null;
+                this.refreshService = null;
             }
 
-            _setupUI() {
-                // Élément de vérification (haut droite)
-                this.ui.success = document.createElement('div');
-                this.ui.success.className = 'bg-white color-dark';
-                this.ui.success.style.cssText = 'position: fixed; top: 60px; right: 10px; z-index: 1000; padding: 8px 12px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);';
-                document.body.appendChild(this.ui.success);
+            render() {
+                document.getElementById('app').innerHTML = `
+                    <div class="display-header">
+                        <a href="../" class="back-button">←</a>
+                        <h3 style="margin: 0;">${this.display.name}</h3>
+                    </div>
+                    <div class="iframe-container">
+                        <iframe src="${this.display.path}" id="display-iframe"></iframe>
+                    </div>
+                `;
 
-                // Élément d'erreur (bas gauche)
-                this.ui.error = document.createElement('div');
-                this.ui.error.className = 'bg-red color-white';
-                this.ui.error.style.cssText = 'position: fixed; bottom: 10px; left: 10px; z-index: 1000; padding: 8px 12px; border-radius: 4px; display: none;';
-                document.body.appendChild(this.ui.error);
+                this.iframe = document.getElementById('display-iframe');
 
-                // Élément de mise à jour (bas droite)
-                this.ui.update = document.createElement('div');
-                this.ui.update.className = 'bg-dark color-white';
-                this.ui.update.style.cssText = 'position: fixed; bottom: 10px; right: 10px; z-index: 1000; padding: 8px 12px; border-radius: 4px; display: none;';
-                document.body.appendChild(this.ui.update);
+                // Timeout pour le chargement de l'iframe
+                const loadTimeout = setTimeout(() => {
+                    console.error('Timeout chargement iframe');
+                    healthMonitor.recordError('Iframe load timeout');
+                    this.reloadIframe();
+                }, 30000);
+
+                this.iframe.addEventListener('load', () => {
+                    clearTimeout(loadTimeout);
+                });
+
+                this.iframe.addEventListener('error', (e) => {
+                    console.error('Erreur iframe:', e);
+                    healthMonitor.recordError('Iframe error');
+                    setTimeout(() => this.reloadIframe(), 5000);
+                });
+
+                // Initialiser les services
+                this.scaleHandler = new ScaleHandler(this.iframe);
+                this.refreshService = new RefreshService(this.display, this.iframe);
             }
 
-            start() {
-                this.stop();
-                this._scheduleRefresh(0); // Démarrer immédiatement
-            }
-
-            stop() {
-                if (this.state.timer) {
-                    clearTimeout(this.state.timer);
-                    this.state.timer = null;
+            reloadIframe() {
+                if (this.iframe) {
+                    console.log('Rechargement iframe...');
+                    this.iframe.src = this.iframe.src;
                 }
             }
 
-            _scheduleRefresh(delay = null) {
-                this.stop();
-                const interval = delay ?? this.state.currentInterval;
-                this.state.timer = setTimeout(() => this._refresh(), interval);
+            cleanup() {
+                if (this.scaleHandler) this.scaleHandler.cleanup();
+                if (this.refreshService) this.refreshService.cleanup();
+            }
+        }
+
+        class ScaleHandler {
+            constructor(iframe) {
+                this.iframe = iframe;
+                this.contentW = window.innerWidth;
+                this.contentH = window.innerHeight;
+                this.resizeTimeout = null;
+                this.loadHandler = null;
+                this.resizeHandler = null;
+
+                this.init();
             }
 
-            async _refresh() {
-                if (this.state.isRefreshing) return;
-
-                this.state.isRefreshing = true;
-                const url = this._buildUrl();
-                const preloader = new PreloadIframe(url);
-
-                preloader
-                    .addOnLoad((iframe) => this._handleSuccess(iframe, url, preloader))
-                    .addOnError((error) => this._handleError(error, preloader));
+            init() {
+                this.loadHandler = () => {
+                    setTimeout(() => this.onLoad(), 150);
+                };
+                this.iframe.addEventListener('load', this.loadHandler);
+                
+                this.resizeHandler = () => {
+                    clearTimeout(this.resizeTimeout);
+                    this.resizeTimeout = setTimeout(() => this.applyScale(), 100);
+                };
+                window.addEventListener('resize', this.resizeHandler);
             }
 
-            _buildUrl() {
-                const base = window.display.path;
+            onLoad() {
+                try {
+                    const doc = this.iframe.contentDocument;
+                    if (!doc) return;
+
+                    doc.head.appendChild(Object.assign(doc.createElement('style'), {
+                        textContent: 'html, body { overflow: hidden !important; margin: 0; padding: 0; }'
+                    }));
+
+                    this.contentW = Math.max(
+                        doc.documentElement.scrollWidth,
+                        doc.documentElement.offsetWidth,
+                        doc.body.scrollWidth,
+                        doc.body.offsetWidth,
+                        1
+                    );
+
+                    this.contentH = Math.max(
+                        doc.documentElement.scrollHeight,
+                        doc.documentElement.offsetHeight,
+                        doc.body.scrollHeight,
+                        doc.body.offsetHeight,
+                        1
+                    );
+
+                    this.applyScale();
+                } catch (e) {
+                    console.error('Erreur dans onLoad:', e);
+                    healthMonitor.recordError(e);
+                }
+            }
+
+            applyScale() {
+                try {
+                    const containerW = window.innerWidth;
+                    const containerH = window.innerHeight;
+                    const scale = Math.min(containerW / this.contentW, containerH / this.contentH);
+
+                    Object.assign(this.iframe.style, {
+                        width: `${this.contentW}px`,
+                        height: `${this.contentH}px`,
+                        transform: `scale(${scale})`,
+                        left: `${(containerW - this.contentW * scale) / 2}px`,
+                        top: `${(containerH - this.contentH * scale) / 2}px`,
+                        position: 'absolute'
+                    });
+                } catch (e) {
+                    console.error('Erreur dans applyScale:', e);
+                    healthMonitor.recordError(e);
+                }
+            }
+
+            cleanup() {
+                if (this.loadHandler) {
+                    this.iframe.removeEventListener('load', this.loadHandler);
+                }
+                if (this.resizeHandler) {
+                    window.removeEventListener('resize', this.resizeHandler);
+                }
+                clearTimeout(this.resizeTimeout);
+            }
+        }
+
+        class RefreshService {
+            constructor(display, iframe) {
+                this.display = display;
+                this.iframe = iframe;
+                this.interval = display.refreshInterval || window.AppConfig?.defaultRefreshInterval || 30000;
+                this.timer = null;
+                this.lastHash = null;
+                this.isRefreshing = false;
+                this.consecutiveErrors = 0;
+                this.abortController = null;
+                this.start();
+            }
+
+            calculateHash(text) {
+                if (typeof text !== 'string') return '0';
+                let hash = 5381;
+                for (let i = 0; i < text.length; i++) {
+                    hash = ((hash << 5) + hash) ^ text.charCodeAt(i);
+                }
+                return (hash >>> 0).toString(16);
+            }
+
+            start() {
+                this.refresh();
+                this.timer = setInterval(() => this.refresh(), this.interval);
+            }
+
+            async refresh() {
+                if (this.isRefreshing) return;
+                this.isRefreshing = true;
+                
+                // Annuler la requête précédente si elle est toujours en cours
+                if (this.abortController) {
+                    this.abortController.abort();
+                }
+                
+                this.abortController = new AbortController();
+                const timeoutId = setTimeout(() => this.abortController.abort(), 10000);
+                
+                try {
+                    const preloadUrl = this.buildUrl();
+                    const now = new Date();
+                    
+                    const response = await fetch(preloadUrl, { 
+                        method: 'GET', 
+                        cache: 'no-cache',
+                        signal: this.abortController.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    
+                    showStatusBanner(now, true);
+                    this.consecutiveErrors = 0;
+                    
+                    const newContent = await response.text();
+                    if (!newContent) return;
+                    
+                    const newHash = this.calculateHash(newContent);
+                    if (!this.lastHash) {
+                        this.lastHash = newHash;
+                        return;
+                    }
+                    
+                    if (newHash !== this.lastHash) {
+                        this.lastHash = newHash;
+                        this.iframe.src = preloadUrl;
+                        showModifBanner(now);
+                    }
+                    
+                    healthMonitor.recordRefresh();
+                    
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    
+                    if (error.name !== 'AbortError') {
+                        this.consecutiveErrors++;
+                        showStatusBanner(undefined, false);
+                        healthMonitor.recordError(error);
+                        
+                        // Si trop d'erreurs consécutives, augmenter l'intervalle
+                        if (this.consecutiveErrors > 5) {
+                            console.log('Trop d\'erreurs, ralentissement du refresh');
+                            this.slowDown();
+                        }
+                    }
+                } finally {
+                    this.isRefreshing = false;
+                    this.abortController = null;
+                }
+            }
+
+            slowDown() {
+                clearInterval(this.timer);
+                // Doubler l'intervalle avec un maximum de 5 minutes
+                this.interval = Math.min(this.interval * 2, 300000);
+                this.timer = setInterval(() => this.refresh(), this.interval);
+            }
+
+            buildUrl() {
+                const base = this.display.path;
                 const separator = base.includes('?') ? '&' : '?';
                 return `${base}${separator}t=${Date.now()}`;
             }
 
-            _handleSuccess(iframe, url, preloader) {
-                try {
-                    // Récupérer le contenu via IframeManager
-                    const manager = new IframeManager(iframe);
-                    const newContent = manager.getDocument(iframe);
-
-                    if (!newContent) {
-                        this._handleError(new Error('Empty content'), preloader);
-                        return;
-                    }
-
-                    // Mettre à jour les dates
-                    this.state.lastSuccessDate = new Date();
-                    this._notifySuccess();
-
-                    // Masquer l'erreur si elle était affichée
-                    this.ui.error.style.display = 'none';
-
-                    // Vérifier si le contenu a changé
-                    const contentChanged = this.state.lastContent &&
-                        this.state.lastContent !== newContent;
-
-                    if (contentChanged) {
-                        this.state.lastContent = newContent;
-                        this.state.lastDiffDate = new Date();
-                        this._notifyContentUpdate();
-                        window.iframeManager.navigate(url);
-                    } else if (!this.state.lastContent) {
-                        // Premier chargement
-                        this.state.lastContent = newContent;
-                    }
-
-                    // Planifier le prochain refresh avec l'intervalle normal
-                    this.state.currentInterval = this.config.okInterval;
-
-                } finally {
-                    preloader.destroy();
-                    this.state.isRefreshing = false;
-                    this._scheduleRefresh();
+            cleanup() {
+                clearInterval(this.timer);
+                if (this.abortController) {
+                    this.abortController.abort();
                 }
-            }
-
-            _handleError(error, preloader) {
-                try {
-                    console.error('Refresh error:', error);
-                    this._notifyError();
-
-                    // Utiliser l'intervalle d'erreur pour le prochain essai
-                    this.state.currentInterval = this.config.failInterval;
-
-                } finally {
-                    preloader.destroy();
-                    this.state.isRefreshing = false;
-                    this._scheduleRefresh();
-                }
-            }
-
-            _notifySuccess() {
-                const date = this.state.lastSuccessDate.toLocaleString();
-                this.ui.success.textContent = `Dernière vérification : ${date}`;
-            }
-
-            _notifyContentUpdate() {
-                const date = this.state.lastDiffDate.toLocaleString();
-                this.ui.update.textContent = `Contenu mis à jour : ${date}`;
-                this.ui.update.style.display = 'block';
-            }
-
-            _notifyError() {
-                const retrySec = Math.round(this.state.currentInterval / 1000);
-                this.ui.error.textContent = `Erreur de connexion. Nouvelle tentative dans ${retrySec}s`;
-                this.ui.error.style.display = 'block';
-            }
-
-            // Méthodes publiques pour accéder à l'état
-            getLastSuccessDate() {
-                return this.state.lastSuccessDate;
-            }
-
-            getLastDiffDate() {
-                return this.state.lastDiffDate;
-            }
-
-            isRefreshing() {
-                return this.state.isRefreshing;
-            }
-
-            destroy() {
-                this.stop();
-                // Nettoyer les éléments UI
-                Object.values(this.ui).forEach(el => {
-                    if (el && el.parentNode) {
-                        el.parentNode.removeChild(el);
-                    }
-                });
             }
         }
 
+        // Initialisation
+        const core = new Core();
+        
+        // Cleanup avant déchargement
+        window.addEventListener('beforeunload', () => {
+            core.cleanup();
+        });
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => core.init());
+        } else {
+            core.init();
+        }
     </script>
 </body>
-
 </html>
