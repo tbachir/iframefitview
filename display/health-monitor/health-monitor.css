@@ -70,7 +70,7 @@
 
 #health-monitor-tooltip {
     position: fixed;
-    bottom: 4.375rem;
+    top: 4.375rem;
     right: 1.25rem;
     background: rgba(0, 0, 0, 0.9);
     color: white;
