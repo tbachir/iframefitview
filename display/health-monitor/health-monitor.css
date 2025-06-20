@@ -1,0 +1,437 @@
+/**
+ * Health Monitor - Styles CSS
+ * Utilise rem pour la scalabilité
+ */
+
+/* =============================================================================
+   BOUTON PRINCIPAL
+   ============================================================================= */
+
+#health-monitor-button {
+    position: fixed;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    background: #2563eb;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10000;
+    font-size: 1rem;
+    box-shadow: 0 0.125rem 0.625rem rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+    user-select: none;
+    border: none;
+    font-family: system-ui, -apple-system, sans-serif;
+}
+
+#health-monitor-button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.3);
+}
+
+/* États du bouton */
+#health-monitor-button.healthy {
+    background: #10b981;
+}
+
+#health-monitor-button.warning {
+    background: #f59e0b;
+}
+
+#health-monitor-button.critical {
+    background: #ef4444;
+    animation: pulse-critical 2s infinite;
+}
+
+#health-monitor-button.initializing {
+    background: #6b7280;
+    animation: pulse-init 1.5s infinite;
+}
+
+/* Animations */
+@keyframes pulse-critical {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+@keyframes pulse-init {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+/* =============================================================================
+   TOOLTIP COMPACT
+   ============================================================================= */
+
+#health-monitor-tooltip {
+    position: fixed;
+    bottom: 4.375rem;
+    right: 1.25rem;
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 0.9375rem;
+    border-radius: 0.5rem;
+    font-family: 'Courier New', Monaco, 'Lucida Console', monospace;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    z-index: 10001;
+    min-width: 17.5rem;
+    max-width: 25rem;
+    opacity: 0;
+    transform: translateY(0.625rem);
+    transition: all 0.2s ease;
+    pointer-events: none;
+    white-space: pre-line;
+    border: 0.0625rem solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(0.625rem);
+}
+
+#health-monitor-tooltip.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+/* =============================================================================
+   PANNEAU DÉTAILLÉ
+   ============================================================================= */
+
+#health-monitor-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 1.25rem 3.125rem rgba(0, 0, 0, 0.3);
+    z-index: 10002;
+    width: 90vw;
+    max-width: 50rem;
+    max-height: 90vh;
+    overflow: hidden;
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+#health-monitor-panel.visible {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    pointer-events: auto;
+}
+
+/* Header du panneau */
+.health-panel-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.health-panel-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.health-panel-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    transition: background-color 0.2s ease;
+}
+
+.health-panel-close:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Corps du panneau */
+.health-panel-body {
+    padding: 1.5rem;
+    max-height: calc(90vh - 4rem);
+    overflow-y: auto;
+}
+
+/* Grille des métriques */
+.health-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.health-metric-card {
+    background: #f8fafc;
+    border: 0.0625rem solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    text-align: center;
+}
+
+.health-metric-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    color: #1e293b;
+}
+
+.health-metric-label {
+    font-size: 0.875rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.health-metric-subtitle {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 0.25rem;
+}
+
+/* Couleurs des métriques */
+.health-metric-card.healthy .health-metric-value {
+    color: #10b981;
+}
+
+.health-metric-card.warning .health-metric-value {
+    color: #f59e0b;
+}
+
+.health-metric-card.critical .health-metric-value {
+    color: #ef4444;
+}
+
+/* Sections d'informations */
+.health-info-section {
+    margin-bottom: 1.5rem;
+}
+
+.health-info-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 0.125rem solid #e5e7eb;
+}
+
+.health-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 0.75rem;
+}
+
+.health-info-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background: #f9fafb;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+}
+
+.health-info-label {
+    font-weight: 500;
+    color: #6b7280;
+}
+
+.health-info-value {
+    font-family: 'Courier New', Monaco, monospace;
+    color: #374151;
+    font-weight: 600;
+}
+
+/* Historique */
+.health-history {
+    background: #f8fafc;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    font-family: 'Courier New', Monaco, monospace;
+    font-size: 0.75rem;
+    max-height: 12.5rem;
+    overflow-y: auto;
+}
+
+.health-history-entry {
+    margin-bottom: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    border-left: 0.25rem solid #e5e7eb;
+}
+
+.health-history-entry.error {
+    background: #fef2f2;
+    border-left-color: #ef4444;
+}
+
+.health-history-entry.warning {
+    background: #fefbf2;
+    border-left-color: #f59e0b;
+}
+
+.health-history-entry.info {
+    background: #f0f9ff;
+    border-left-color: #3b82f6;
+}
+
+.health-history-time {
+    color: #6b7280;
+    font-weight: 600;
+}
+
+.health-history-message {
+    color: #374151;
+    margin-left: 0.5rem;
+}
+
+/* Boutons d'action */
+.health-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 0.0625rem solid #e5e7eb;
+}
+
+.health-action-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.health-action-btn.primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.health-action-btn.primary:hover {
+    background: #2563eb;
+}
+
+.health-action-btn.secondary {
+    background: #f3f4f6;
+    color: #374151;
+    border: 0.0625rem solid #d1d5db;
+}
+
+.health-action-btn.secondary:hover {
+    background: #e5e7eb;
+}
+
+.health-action-btn.danger {
+    background: #ef4444;
+    color: white;
+}
+
+.health-action-btn.danger:hover {
+    background: #dc2626;
+}
+
+/* Overlay */
+#health-monitor-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10001;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+#health-monitor-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Responsive */
+@media (max-width: 48rem) {
+    #health-monitor-panel {
+        width: 95vw;
+        max-height: 95vh;
+    }
+    
+    .health-panel-body {
+        padding: 1rem;
+    }
+    
+    .health-metrics-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .health-info-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .health-actions {
+        flex-direction: column;
+    }
+}
+
+/* =============================================================================
+   UTILITAIRES
+   ============================================================================= */
+
+.health-status-indicator {
+    display: inline-block;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+}
+
+.health-status-indicator.healthy {
+    background: #10b981;
+}
+
+.health-status-indicator.warning {
+    background: #f59e0b;
+}
+
+.health-status-indicator.critical {
+    background: #ef4444;
+}
+
+.health-status-indicator.initializing {
+    background: #6b7280;
+}
+
+/* Scrollbar personnalisée */
+.health-panel-body::-webkit-scrollbar,
+.health-history::-webkit-scrollbar {
+    width: 0.375rem;
+}
+
+.health-panel-body::-webkit-scrollbar-track,
+.health-history::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 0.1875rem;
+}
+
+.health-panel-body::-webkit-scrollbar-thumb,
+.health-history::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 0.1875rem;
+}
+
+.health-panel-body::-webkit-scrollbar-thumb:hover,
+.health-history::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
