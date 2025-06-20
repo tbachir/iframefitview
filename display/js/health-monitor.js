@@ -3,6 +3,13 @@
  * Usage: const monitor = new HealthMonitor(); monitor.init();
  */
 class HealthMonitor {
+    static CONSTANTS = {
+        MB: 1024 * 1024,
+        GB: 1024 * 1024 * 1024,
+        MINUTE: 60 * 1000,
+        HOUR: 60 * 60 * 1000
+    };
+
     constructor() {
         this.enabled = false;
         this.stats = {
@@ -100,16 +107,23 @@ class HealthMonitor {
     /**
      * Surveille l'utilisation mémoire
      */
+    /**
+ * Surveille l'utilisation mémoire
+ */
     checkMemoryUsage() {
         if (!performance.memory) return;
 
-        const usedMB = performance.memory.usedJSHeapSize / 1048576;
-        const limitMB = performance.memory.jsHeapSizeLimit / 1048576;
-        const usage = (usedMB / limitMB) * 100;
+        const used = performance.memory.usedJSHeapSize;
+        const limit = performance.memory.jsHeapSizeLimit;
+        const usage = (used / limit) * 100;
 
         if (usage > this.config.memoryThreshold) {
             this.stats.memoryWarnings++;
-            console.warn(`⚠️ Mémoire élevée: ${usage.toFixed(1)}% (${usedMB.toFixed(1)}MB/${limitMB.toFixed(1)}MB)`);
+
+            // Utiliser le même formatage que getMemoryInfo
+            const usedMB = used / HealthMonitor.CONSTANTS.MB;
+            const limitMB = limit / HealthMonitor.CONSTANTS.MB;
+            console.warn(`⚠️ Mémoire élevée: ${usage.toFixed(1)}% (${usedMB.toFixed(0)}MB/${limitMB.toFixed(0)}MB)`);
 
             // Reload si trop de warnings
             if (this.stats.memoryWarnings > this.config.maxMemoryWarnings) {
@@ -156,16 +170,34 @@ class HealthMonitor {
     }
 
     /**
-     * Récupère les informations mémoire formatées
-     */
+ * Récupère les informations mémoire formatées
+ */
     getMemoryInfo() {
         if (!performance.memory) return null;
 
-        const usedMB = (performance.memory.usedJSHeapSize / 1048576).toFixed(1);
-        const limitMB = (performance.memory.jsHeapSizeLimit / 1048576).toFixed(1);
-        const usage = ((performance.memory.usedJSHeapSize / performance.memory.jsHeapSizeLimit) * 100).toFixed(1);
+        const MB = HealthMonitor.CONSTANTS.MB;
+        const GB = HealthMonitor.CONSTANTS.GB;
 
-        return `Mem: ${usedMB}/${limitMB}MB (${usage}%)`;
+        const used = performance.memory.usedJSHeapSize;
+        const limit = performance.memory.jsHeapSizeLimit;
+        const usage = (used / limit) * 100;
+
+        // Formatter en GB si >= 1GB
+        let memStr;
+        if (limit >= GB) {
+            const usedGB = used / GB;
+            const limitGB = limit / GB;
+            memStr = `${usedGB.toFixed(2)}/${limitGB.toFixed(2)}GB`;
+        } else {
+            const usedMB = used / MB;
+            const limitMB = limit / MB;
+            memStr = `${Math.round(usedMB)}/${Math.round(limitMB)}MB`;
+        }
+
+        // Formatage du pourcentage
+        const usageStr = usage < 0.1 ? usage.toFixed(2) : usage.toFixed(1);
+
+        return `Mem: ${memStr} (${usageStr}%)`;
     }
 
     /**
@@ -233,7 +265,31 @@ class HealthMonitor {
      * Récupère les statistiques actuelles
      */
     getStats() {
-        return { ...this.stats };
+        return {
+            ...this.stats,
+            memoryInfo: this.getDetailedMemoryInfo()
+        };
+    }
+
+    /**
+ * Récupère des informations détaillées sur la mémoire
+ */
+    getDetailedMemoryInfo() {
+        if (!performance.memory) return null;
+
+        const MB = HealthMonitor.CONSTANTS.MB;
+        const used = performance.memory.usedJSHeapSize;
+        const total = performance.memory.totalJSHeapSize;
+        const limit = performance.memory.jsHeapSizeLimit;
+
+        return {
+            usedMB: Number((used / MB).toFixed(2)),
+            totalMB: Number((total / MB).toFixed(2)),
+            limitMB: Number((limit / MB).toFixed(2)),
+            usagePercent: Number(((used / limit) * 100).toFixed(3)),
+            totalUsagePercent: Number(((total / limit) * 100).toFixed(3)),
+            raw: { used, total, limit }
+        };
     }
 
     /**
@@ -260,7 +316,7 @@ class HealthMonitor {
         }
 
         // Supprimer le banner de santé s'il existe
-        if (this.healthBannerElement) { 
+        if (this.healthBannerElement) {
             this.healthBannerElement.remove();
             this.healthBannerElement = null;
         }
