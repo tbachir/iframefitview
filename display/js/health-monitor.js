@@ -14,6 +14,7 @@ class HealthMonitor {
         };
         this.healthInterval = null;
         this.reloadInterval = null;
+        this.healthBannerElement = null; //  Cache banner element
         this.config = {
             healthCheckInterval: 30000,        // 30 secondes
             preventiveReloadInterval: 12 * 60 * 60 * 1000, // 12 heures
@@ -105,11 +106,11 @@ class HealthMonitor {
         const usedMB = performance.memory.usedJSHeapSize / 1048576;
         const limitMB = performance.memory.jsHeapSizeLimit / 1048576;
         const usage = (usedMB / limitMB) * 100;
-        
+
         if (usage > this.config.memoryThreshold) {
             this.stats.memoryWarnings++;
             console.warn(`⚠️ Mémoire élevée: ${usage.toFixed(1)}% (${usedMB.toFixed(1)}MB/${limitMB.toFixed(1)}MB)`);
-            
+
             // Reload si trop de warnings
             if (this.stats.memoryWarnings > this.config.maxMemoryWarnings) {
                 console.log('🔄 Reload pour libérer la mémoire');
@@ -139,10 +140,15 @@ class HealthMonitor {
     updateHealthBanner() {
         if (!this.enabled) return;
 
-        const banner = this.getOrCreateBanner('health-banner', 'banner health-banner');
+        //call with cached version
+        if (!this.healthBannerElement) {
+            this.healthBannerElement = this.getOrCreateBanner('health-banner', 'banner health-banner');
+        }
+        const banner = this.healthBannerElement;
+
         const uptime = Math.floor((Date.now() - this.stats.startTime) / 1000 / 60);
         const memoryInfo = this.getMemoryInfo();
-        
+
         banner.innerHTML = `
             <div>Uptime: ${uptime}m | Refresh: ${this.stats.refreshCount} | Err: ${this.stats.errorCount}</div>
             ${memoryInfo ? `<div style="font-size: 0.7em; opacity: 0.8;">${memoryInfo}</div>` : ''}
@@ -154,11 +160,11 @@ class HealthMonitor {
      */
     getMemoryInfo() {
         if (!performance.memory) return null;
-        
+
         const usedMB = (performance.memory.usedJSHeapSize / 1048576).toFixed(1);
         const limitMB = (performance.memory.jsHeapSizeLimit / 1048576).toFixed(1);
         const usage = ((performance.memory.usedJSHeapSize / performance.memory.jsHeapSizeLimit) * 100).toFixed(1);
-        
+
         return `Mem: ${usedMB}/${limitMB}MB (${usage}%)`;
     }
 
@@ -242,21 +248,21 @@ class HealthMonitor {
      */
     cleanup() {
         console.log('🧹 Nettoyage du monitoring');
-        
+
         if (this.healthInterval) {
             clearInterval(this.healthInterval);
             this.healthInterval = null;
         }
-        
+
         if (this.reloadInterval) {
             clearInterval(this.reloadInterval);
             this.reloadInterval = null;
         }
-        
+
         // Supprimer le banner de santé s'il existe
-        const banner = document.getElementById('health-banner');
-        if (banner) {
-            banner.remove();
+        if (this.healthBannerElement) { 
+            this.healthBannerElement.remove();
+            this.healthBannerElement = null;
         }
     }
 }

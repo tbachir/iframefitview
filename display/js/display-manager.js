@@ -59,10 +59,18 @@ class DisplayManager {
             this.iframe.addEventListener('error', (e) => {
                 console.error('❌ Erreur iframe:', e);
                 window.healthMonitor.recordError('Iframe error');
+
+                // Clear timeout on error too
+                if (this.loadTimeout) {
+                    clearTimeout(this.loadTimeout);
+                    this.loadTimeout = null;
+                }
+
                 setTimeout(() => this.reloadIframe(), 5000);
             });
         }
     }
+
 
     /**
      * Initialise les services associés
@@ -70,7 +78,7 @@ class DisplayManager {
     initializeServices() {
         // Initialiser le gestionnaire de mise à l'échelle
         this.scaleHandler = new ScaleHandler(this.iframe);
-        
+
         // Initialiser le service de refresh
         this.refreshService = new RefreshService(this.display, this.iframe);
     }
@@ -128,22 +136,22 @@ class DisplayManager {
      */
     cleanup() {
         console.log('🧹 Nettoyage DisplayManager');
-        
+
         if (this.loadTimeout) {
             clearTimeout(this.loadTimeout);
             this.loadTimeout = null;
         }
-        
+
         if (this.scaleHandler) {
             this.scaleHandler.cleanup();
             this.scaleHandler = null;
         }
-        
+
         if (this.refreshService) {
             this.refreshService.cleanup();
             this.refreshService = null;
         }
-        
+
         this.iframe = null;
     }
 }

@@ -11,7 +11,8 @@ class ScaleHandler {
         this.loadHandler = null;
         this.resizeHandler = null;
         this.isReady = false;
-        
+        this.iframeDoc = null; // Cache iframe document
+
         this.config = {
             loadDelay: 150,              // Délai avant mesure du contenu
             resizeDebounce: 100,         // Debounce pour le resize
@@ -39,7 +40,7 @@ class ScaleHandler {
         this.loadHandler = () => {
             setTimeout(() => this.onLoad(), this.config.loadDelay);
         };
-        
+
         this.iframe.addEventListener('load', this.loadHandler);
     }
 
@@ -55,7 +56,7 @@ class ScaleHandler {
                 }
             }, this.config.resizeDebounce);
         };
-        
+
         window.addEventListener('resize', this.resizeHandler);
     }
 
@@ -70,13 +71,14 @@ class ScaleHandler {
                 return;
             }
 
+            this.iframeDoc = doc;
             this.injectStyles(doc);
             this.measureContent(doc);
             this.applyScale();
             this.isReady = true;
-            
+
             console.log(`📏 Contenu mesuré: ${this.contentW}×${this.contentH}px`);
-            
+
         } catch (e) {
             console.error('❌ Erreur dans onLoad:', e);
             if (window.healthMonitor) {
@@ -116,7 +118,7 @@ class ScaleHandler {
                 backface-visibility: hidden;
             }
         `;
-        
+
         doc.head.appendChild(style);
     }
 
@@ -134,7 +136,7 @@ class ScaleHandler {
                 doc.body?.offsetWidth || 0,
                 doc.body?.clientWidth || 0
             ].filter(val => val > 0),
-            
+
             height: [
                 doc.documentElement.scrollHeight,
                 doc.documentElement.offsetHeight,
@@ -151,12 +153,12 @@ class ScaleHandler {
 
         // Validation des dimensions (limite raisonnable)
         const maxSize = 20000; // 20k pixels max
-        
+
         if (this.contentW > maxSize) {
             console.warn(`⚠️ Largeur très importante: ${this.contentW}px, limitée à ${maxSize}px`);
             this.contentW = maxSize;
         }
-        
+
         if (this.contentH > maxSize) {
             console.warn(`⚠️ Hauteur très importante: ${this.contentH}px, limitée à ${maxSize}px`);
             this.contentH = maxSize;
@@ -172,13 +174,13 @@ class ScaleHandler {
                 width: window.innerWidth,
                 height: window.innerHeight
             };
-            
+
             const scale = this.calculateOptimalScale(viewport);
             const transform = this.buildTransform(scale, viewport);
-            
+
             this.applyTransform(transform);
             this.logScalingInfo(scale, viewport);
-            
+
         } catch (e) {
             console.error('❌ Erreur dans applyScale:', e);
             if (window.healthMonitor) {
@@ -193,39 +195,39 @@ class ScaleHandler {
     calculateOptimalScale(viewport) {
         const scaleX = viewport.width / this.contentW;
         const scaleY = viewport.height / this.contentH;
-        
+
         let scale;
-        
+
         switch (this.config.fillMode) {
             case 'cover':
                 // Remplit tout l'écran, peut rogner le contenu
                 scale = Math.max(scaleX, scaleY);
                 break;
-                
+
             case 'fill':
                 // Étire le contenu pour remplir exactement
                 return { x: scaleX, y: scaleY, uniform: false };
-                
+
             case 'fit-width':
                 // Ajuste à la largeur
                 scale = scaleX;
                 break;
-                
+
             case 'fit-height':
                 // Ajuste à la hauteur
                 scale = scaleY;
                 break;
-                
+
             case 'contain':
             default:
                 // Contient tout le contenu visible (défaut)
                 scale = Math.min(scaleX, scaleY);
                 break;
         }
-        
+
         // Appliquer les limites configurées
         scale = Math.max(this.config.minScale, Math.min(this.config.maxScale, scale));
-        
+
         return { x: scale, y: scale, uniform: true };
     }
 
@@ -235,15 +237,15 @@ class ScaleHandler {
     buildTransform(scale, viewport) {
         const scaledW = this.contentW * scale.x;
         const scaledH = this.contentH * scale.y;
-        
+
         let left = 0;
         let top = 0;
-        
+
         if (this.config.centerContent) {
             left = (viewport.width - scaledW) / 2;
             top = (viewport.height - scaledH) / 2;
         }
-        
+
         return {
             width: this.contentW,
             height: this.contentH,
@@ -261,12 +263,12 @@ class ScaleHandler {
      */
     applyTransform(transform) {
         const { width, height, scaleX, scaleY, left, top } = transform;
-        
+
         // Transformation CSS
-        const transformCSS = scaleX === scaleY 
-            ? `scale(${scaleX})` 
+        const transformCSS = scaleX === scaleY
+            ? `scale(${scaleX})`
             : `scale(${scaleX}, ${scaleY})`;
-            
+
         Object.assign(this.iframe.style, {
             width: `${width}px`,
             height: `${height}px`,
@@ -284,14 +286,14 @@ class ScaleHandler {
      * Log les informations de scaling
      */
     logScalingInfo(scale, viewport) {
-        const scalePercent = scale.uniform 
+        const scalePercent = scale.uniform
             ? `${(scale.x * 100).toFixed(1)}%`
             : `${(scale.x * 100).toFixed(1)}% × ${(scale.y * 100).toFixed(1)}%`;
-            
+
         const finalSize = scale.uniform
             ? `${Math.round(this.contentW * scale.x)}×${Math.round(this.contentH * scale.y)}`
             : `${Math.round(this.contentW * scale.x)}×${Math.round(this.contentH * scale.y)}`;
-            
+
         console.log(`🔍 Échelle: ${scalePercent} | ${this.contentW}×${this.contentH} → ${finalSize} | Mode: ${this.config.fillMode}`);
     }
 
@@ -304,10 +306,10 @@ class ScaleHandler {
             console.error(`❌ Mode de remplissage invalide: ${mode}`);
             return;
         }
-        
+
         console.log(`🔧 Changement de mode: ${this.config.fillMode} → ${mode}`);
         this.config.fillMode = mode;
-        
+
         if (this.isReady) {
             this.applyScale();
         }
@@ -330,9 +332,9 @@ class ScaleHandler {
             width: window.innerWidth,
             height: window.innerHeight
         };
-        
+
         const scale = this.isReady ? this.calculateOptimalScale(viewport) : { x: 1, y: 1, uniform: true };
-        
+
         return {
             contentDimensions: {
                 width: this.contentW,
@@ -352,15 +354,15 @@ class ScaleHandler {
     updateConfig(newConfig) {
         const oldConfig = { ...this.config };
         this.config = { ...this.config, ...newConfig };
-        
+
         console.log('⚙️ Configuration scaling mise à jour');
-        
+
         // Appliquer immédiatement si nécessaire
         const criticalChanges = ['fillMode', 'maxScale', 'minScale', 'centerContent'];
-        const shouldReapply = criticalChanges.some(key => 
+        const shouldReapply = criticalChanges.some(key =>
             newConfig[key] !== undefined && newConfig[key] !== oldConfig[key]
         );
-        
+
         if (shouldReapply && this.isReady) {
             this.applyScale();
         }
@@ -388,6 +390,7 @@ class ScaleHandler {
         }
         
         this.isReady = false;
+        this.iframeDoc = null; // Clear cached reference
         this.iframe = null;
     }
 }

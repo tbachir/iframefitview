@@ -12,8 +12,9 @@ class RefreshService {
         this.isRefreshing = false;
         this.consecutiveErrors = 0;
         this.abortController = null;
+        this.activeControllers = new Set();
         this.retryCount = 0;
-        
+
         this.config = {
             maxRetries: 3,
             retryDelay: 5000,
@@ -43,7 +44,7 @@ class RefreshService {
         if (this.timer) {
             clearInterval(this.timer);
         }
-        
+
         this.timer = setInterval(() => this.refresh(), this.interval);
     }
 
@@ -55,34 +56,38 @@ class RefreshService {
             console.log('⏭️ Refresh déjà en cours, ignoré');
             return;
         }
-        
+
         this.isRefreshing = true;
-        
+
         // Annuler la requête précédente si elle est toujours en cours
         if (this.abortController) {
             this.abortController.abort();
+            this.activeControllers.delete(this.abortController);
         }
-        
+
         this.abortController = new AbortController();
+        this.activeControllers.add(this.abortController);
+
         const timeoutId = setTimeout(() => {
             this.abortController.abort();
         }, this.config.timeoutDuration);
-        
+
         try {
             const result = await this.fetchContent();
             clearTimeout(timeoutId);
-            
+
             if (result.success) {
                 this.handleSuccessfulRefresh(result);
             } else {
                 this.handleFailedRefresh(result.error);
             }
-            
+
         } catch (error) {
             clearTimeout(timeoutId);
             this.handleFailedRefresh(error);
         } finally {
             this.isRefreshing = false;
+            this.activeControllers.delete(this.abortController);
             this.abortController = null;
         }
     }
@@ -94,11 +99,11 @@ class RefreshService {
         try {
             const preloadUrl = this.buildUrl();
             const now = new Date();
-            
+
             console.log(`📡 Vérification de ${preloadUrl}`);
-            
-            const response = await fetch(preloadUrl, { 
-                method: 'GET', 
+
+            const response = await fetch(preloadUrl, {
+                method: 'GET',
                 cache: 'no-cache',
                 signal: this.abortController.signal,
                 headers: {
@@ -107,26 +112,26 @@ class RefreshService {
                     'Expires': '0'
                 }
             });
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-            
+
             const newContent = await response.text();
-            
+
             return {
                 success: true,
                 content: newContent,
                 timestamp: now,
                 url: preloadUrl
             };
-            
+
         } catch (error) {
             if (error.name === 'AbortError') {
                 console.log('🚫 Requête annulée');
                 return { success: false, error: 'Request aborted' };
             }
-            
+
             return { success: false, error: error };
         }
     }
@@ -136,26 +141,26 @@ class RefreshService {
      */
     handleSuccessfulRefresh(result) {
         const { content, timestamp, url } = result;
-        
+
         // Réinitialiser les compteurs d'erreur
         this.consecutiveErrors = 0;
         this.retryCount = 0;
-        
+
         // Afficher le statut de succès
         if (window.showStatusBanner) {
             window.showStatusBanner(timestamp, true);
         }
-        
+
         // Vérifier si le contenu a changé
         if (content && this.hasContentChanged(content)) {
             console.log('📄 Contenu modifié détecté, rechargement...');
             this.reloadIframe(url);
-            
+
             if (window.showModifBanner) {
                 window.showModifBanner(timestamp);
             }
         }
-        
+
         // Enregistrer le refresh dans le monitoring
         if (window.healthMonitor) {
             window.healthMonitor.recordRefresh();
@@ -168,25 +173,25 @@ class RefreshService {
     handleFailedRefresh(error) {
         this.consecutiveErrors++;
         this.retryCount++;
-        
+
         console.error(`❌ Erreur refresh (tentative ${this.retryCount}/${this.config.maxRetries}):`, error);
-        
+
         // Afficher le statut d'erreur
         if (window.showStatusBanner) {
             window.showStatusBanner(undefined, false);
         }
-        
+
         // Enregistrer l'erreur dans le monitoring
         if (window.healthMonitor) {
             window.healthMonitor.recordError(error);
         }
-        
+
         // Ralentir si trop d'erreurs consécutives
         if (window.healthMonitor && window.healthMonitor.shouldSlowDown(this.consecutiveErrors)) {
             console.log('⚠️ Trop d\'erreurs, ralentissement du refresh');
             this.slowDown();
         }
-        
+
         // Retry si pas trop de tentatives
         if (this.retryCount < this.config.maxRetries) {
             console.log(`🔄 Nouvelle tentative dans ${this.config.retryDelay}ms`);
@@ -205,21 +210,21 @@ class RefreshService {
      */
     hasContentChanged(newContent) {
         if (!newContent) return false;
-        
+
         const newHash = this.calculateHash(newContent);
-        
+
         if (!this.lastHash) {
             this.lastHash = newHash;
             return false; // Premier chargement
         }
-        
+
         const hasChanged = newHash !== this.lastHash;
-        
+
         if (hasChanged) {
             console.log(`🔍 Hash changé: ${this.lastHash} → ${newHash}`);
             this.lastHash = newHash;
         }
-        
+
         return hasChanged;
     }
 
@@ -251,10 +256,10 @@ class RefreshService {
     slowDown() {
         const oldInterval = this.interval;
         this.interval = Math.min(
-            this.interval * this.config.slowdownMultiplier, 
+            this.interval * this.config.slowdownMultiplier,
             this.config.maxInterval
         );
-        
+
         if (this.interval !== oldInterval) {
             console.log(`🐌 Ralentissement: ${oldInterval}ms → ${this.interval}ms`);
             this.scheduleNext();
@@ -267,9 +272,9 @@ class RefreshService {
     speedUp() {
         const originalInterval = this.display.refreshInterval || window.AppConfig?.defaultRefreshInterval || 30000;
         const oldInterval = this.interval;
-        
+
         this.interval = Math.max(originalInterval, this.config.minInterval);
-        
+
         if (this.interval !== oldInterval) {
             console.log(`🚀 Accélération: ${oldInterval}ms → ${this.interval}ms`);
             this.scheduleNext();
@@ -294,12 +299,12 @@ class RefreshService {
         this.lastHash = null; // Force la détection de changement
         this.consecutiveErrors = 0;
         this.retryCount = 0;
-        
+
         // Annuler le timer actuel et rafraîchir immédiatement
         if (this.timer) {
             clearInterval(this.timer);
         }
-        
+
         this.refresh().then(() => {
             this.scheduleNext();
         });
@@ -314,7 +319,7 @@ class RefreshService {
             clearInterval(this.timer);
             this.timer = null;
         }
-        
+
         if (this.abortController) {
             this.abortController.abort();
         }
@@ -336,9 +341,9 @@ class RefreshService {
     updateInterval(newInterval) {
         const oldInterval = this.interval;
         this.interval = Math.max(newInterval, this.config.minInterval);
-        
+
         console.log(`⏱️ Intervalle mis à jour: ${oldInterval}ms → ${this.interval}ms`);
-        
+
         if (this.timer) {
             this.scheduleNext();
         }
@@ -385,18 +390,18 @@ class RefreshService {
      */
     cleanup() {
         console.log('🧹 Nettoyage RefreshService');
-        
+
         // Arrêter le timer
         if (this.timer) {
             clearInterval(this.timer);
             this.timer = null;
         }
-        
-        // Annuler les requêtes en cours
-        if (this.abortController) {
-            this.abortController.abort();
-            this.abortController = null;
-        }
+
+        this.activeControllers.forEach(controller => {
+            controller.abort();
+        });
+        this.activeControllers.clear();
+        this.abortController = null;
         
         // Reset des propriétés
         this.isRefreshing = false;
