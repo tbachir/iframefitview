@@ -3,90 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>HuddleBoard</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: white;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        h1 { color: #dc2626; margin-bottom: 50px; font-weight: 300; font-size: 3rem; }
-        .grid {
-            display: -ms-grid;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            -ms-grid-columns: 1fr 25px 1fr 25px 1fr 25px 1fr;
-            gap: 25px;
-            max-width: 1000px;
-            width: 100%;
-        }
-        @supports not (display: grid) {
-            .grid { display: flex; flex-wrap: wrap; }
-            .card { flex: 1 1 250px; margin: 12px; }
-        }
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 40px;
-            text-decoration: none;
-            color: #374151;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            -webkit-transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            height: 100%;
-            transform: translateY(0) scale(1);
-            -webkit-transform: translateY(0) scale(1);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        }
-        .card:hover {
-            transform: translateY(-8px) scale(1.02);
-            -webkit-transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
-        }
-        .name { 
-            font-weight: 600; 
-            font-size: 1.2rem; 
-            margin-bottom: 8px; 
-            color: #dc2626;
-        }
-        .desc { color: #6b7280; font-size: 0.9rem; margin-bottom: 12px; line-height: 1.4; }
-        .icon { 
-            font-size: 2.5rem; 
-            margin-bottom: 15px; 
-            color: #dc2626;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            -webkit-transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .card:hover .icon {
-            transform: scale(1.15) rotate(5deg);
-            -webkit-transform: scale(1.15) rotate(5deg);
-        }
-        .slug { 
-            background: #f3f4f6; 
-            padding: 2px 6px; 
-            border-radius: 4px; 
-            font-size: 0.8rem; 
-            font-family: monospace; 
-            color: #6b7280;
-        }
-        .error { 
-            color: #dc2626; 
-            text-align: center; 
-            padding: 40px; 
-        }
-    </style>
+    <link rel="stylesheet" href="display/styles.css">
 </head>
-<body>
-    <h1>HuddleBoard</h1>
+<body class="home-body">
+    <h1 class="home-title">HuddleBoard</h1>
     <div id="app"></div>
     
     <script src="config.js"></script>

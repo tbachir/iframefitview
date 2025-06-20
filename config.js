@@ -1,9 +1,15 @@
 window.AppConfig = {
+    // Configuration globale du monitoring (optionnel)
+    // Si absent, le monitoring sera désactivé par défaut
+    monitoring: true, // ou false pour désactiver globalement
+    
+    // Intervalle de refresh par défaut en ms (optionnel)
+    defaultRefreshInterval: 30000,
     displays: [
         {
             name: "Projet",
             slug: "projet",
-            path: "displays/Projet/index.html",
+            path: "./displays/Projet/index.html",
             refreshInterval: 17000,
             description: "Description optionnelle"
         },
@@ -11,7 +17,8 @@ window.AppConfig = {
             name: "OFFLINE 2",
             slug: "offline2",
             path: "./displays/Projet copy/index.html",
-            description: "Description optionnelle"
+            description: "Description optionnelle",
+            monitoring: false
         },
         {
             name: "Projet 3",
@@ -35,7 +42,6 @@ window.AppConfig = {
             name: "Cas texte long",
             slug: "texte-long",
             path: "./displays/long_text_in_cell/index.html",
-            refreshInterval: 8000,
             description: "Cellule contenant un texte très long, Cellule contenant un texte très long, Cellule contenant un texte très long"
         },
         {
