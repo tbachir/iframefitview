@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="UTF-8">
     <title>HuddleBoard Display</title>
@@ -11,13 +12,13 @@
 
     <!-- Configuration -->
     <script src="../config.js"></script>
-    
+
     <!-- Modules HuddleBoard -->
     <script src="js/health-monitor.js"></script>
     <script src="js/scale-handler.js"></script>
     <script src="js/refresh-service.js"></script>
     <script src="js/display-manager.js"></script>
-    
+
     <!-- Application principale -->
     <script>
         /**
@@ -35,25 +36,25 @@
              */
             init() {
                 console.log('🚀 Initialisation HuddleBoard Display');
-                
+
                 // Initialiser le monitoring de santé
                 this.initHealthMonitoring();
-                
+
                 // Valider et charger la configuration
                 if (!this.validateConfig()) {
                     this.showConfigError();
                     return;
                 }
-                
+
                 // Trouver et charger le display
                 if (!this.loadDisplay()) {
                     this.showDisplayError();
                     return;
                 }
-                
+
                 // Initialiser le gestionnaire d'affichage
                 this.initDisplayManager();
-                
+
                 console.log('✅ HuddleBoard Display initialisé avec succès');
             }
 
@@ -63,10 +64,10 @@
             initHealthMonitoring() {
                 this.healthMonitor = new HealthMonitor();
                 const monitoringEnabled = this.healthMonitor.init();
-                
+
                 // Rendre le monitor accessible globalement
                 window.healthMonitor = this.healthMonitor;
-                
+
                 console.log(`${monitoringEnabled ? '🔍' : '📴'} Monitoring: ${monitoringEnabled ? 'Activé' : 'Désactivé'}`);
             }
 
@@ -78,17 +79,17 @@
                     console.error('❌ window.AppConfig non trouvé');
                     return false;
                 }
-                
+
                 if (!window.AppConfig.displays || !Array.isArray(window.AppConfig.displays)) {
                     console.error('❌ AppConfig.displays manquant ou invalide');
                     return false;
                 }
-                
+
                 if (window.AppConfig.displays.length === 0) {
                     console.error('❌ Aucun display configuré');
                     return false;
                 }
-                
+
                 return true;
             }
 
@@ -98,19 +99,19 @@
             loadDisplay() {
                 const hash = window.location.hash;
                 const slug = hash?.startsWith('#/') ? hash.substring(2) : null;
-                
+
                 if (!slug) {
                     console.error('❌ Slug manquant dans l\'URL');
                     return false;
                 }
-                
+
                 this.display = window.AppConfig.displays.find(d => d?.slug === slug);
-                
+
                 if (!this.display) {
                     console.error(`❌ Display '${slug}' non trouvé`);
                     return false;
                 }
-                
+
                 console.log(`📺 Display chargé: ${this.display.name} (${this.display.slug})`);
                 return true;
             }
@@ -155,25 +156,34 @@
              */
             cleanup() {
                 console.log('🧹 Nettoyage Core Application');
-                
+
                 if (this.displayManager) {
                     this.displayManager.cleanup();
                     this.displayManager = null;
                 }
-                
+
                 if (this.healthMonitor) {
                     this.healthMonitor.cleanup();
                     this.healthMonitor = null;
                     window.healthMonitor = null;
                 }
-                
+
                 this.display = null;
             }
 
             /**
              * Récupère les informations de l'application
              */
-            getAppInfo() {
+            async getAppInfo() {
+                let healthStats = null;
+                if (this.healthMonitor) {
+                    try {
+                        healthStats = await this.healthMonitor.getStats(); 
+                    } catch (error) {
+                        console.warn('⚠️ Erreur récupération stats santé:', error);
+                    }
+                }
+
                 return {
                     display: this.display ? {
                         name: this.display.name,
@@ -181,7 +191,7 @@
                         path: this.display.path,
                         monitoring: this.display.monitoring
                     } : null,
-                    healthMonitoring: this.healthMonitor ? this.healthMonitor.getStats() : null,
+                    healthMonitoring: healthStats,
                     displayManager: this.displayManager ? this.displayManager.getDisplayInfo() : null
                 };
             }
@@ -253,7 +263,7 @@
 
         // Exposer l'application pour le debug
         window.HuddleBoardApp = app;
-        
+
         // Commandes de debug utiles
         window.debug = {
             getAppInfo: () => app.getAppInfo(),
@@ -261,10 +271,14 @@
             getHealthStats: () => window.healthMonitor?.getStats(),
             getScaleInfo: () => app.displayManager?.scaleHandler?.getScaleInfo(),
             getRefreshStats: () => app.displayManager?.refreshService?.getStats(),
-            setFillMode: (mode) => app.displayManager?.scaleHandler?.setFillMode(mode)
+            setFillMode: (mode) => app.displayManager?.scaleHandler?.setFillMode(mode),
+            getMemoryInfo: async () => window.healthMonitor ? await window.healthMonitor.getMemoryInfo() : null,
+            getDetailedMemory: async () => window.healthMonitor ? await window.healthMonitor.getDetailedMemoryInfo() : null,
+            updateHealthBanner: async () => window.healthMonitor ? await window.healthMonitor.updateHealthBanner() : null
         };
 
         console.log('🛠️ Commandes debug disponibles: window.debug');
     </script>
 </body>
+
 </html>

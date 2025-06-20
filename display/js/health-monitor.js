@@ -62,9 +62,9 @@ class HealthMonitor {
         if (!this.enabled) return;
 
         // Vérification de la santé
-        this.healthInterval = setInterval(() => {
+        this.healthInterval = setInterval(async () => {
             this.checkHealth();
-            this.updateHealthBanner();
+            await this.updateHealthBanner(); // AJOUT: await
         }, this.config.healthCheckInterval);
 
         // Reload préventif
@@ -73,8 +73,10 @@ class HealthMonitor {
             this.performPreventiveReload();
         }, this.config.preventiveReloadInterval);
 
-        // Affichage initial du banner
-        this.updateHealthBanner();
+        // Affichage initial du banner (MODIFICATION: rendre asynchrone)
+        this.updateHealthBanner().catch(error => {
+            console.warn('⚠️ Erreur initialisation banner:', error);
+        });
     }
 
     /**
@@ -107,9 +109,6 @@ class HealthMonitor {
     /**
      * Surveille l'utilisation mémoire
      */
-    /**
- * Surveille l'utilisation mémoire
- */
     checkMemoryUsage() {
         if (!performance.memory) return;
 
@@ -151,7 +150,7 @@ class HealthMonitor {
     /**
      * Met à jour le banner de santé
      */
-    updateHealthBanner() {
+    async updateHealthBanner() {
         if (!this.enabled) return;
 
         //call with cached version
@@ -167,37 +166,6 @@ class HealthMonitor {
             <div>Uptime: ${uptime}m | Refresh: ${this.stats.refreshCount} | Err: ${this.stats.errorCount}</div>
             ${memoryInfo ? `<div style="font-size: 0.7em; opacity: 0.8;">${memoryInfo}</div>` : ''}
         `;
-    }
-
-    /**
- * Récupère les informations mémoire formatées
- */
-    getMemoryInfo() {
-        if (!performance.memory) return null;
-
-        const MB = HealthMonitor.CONSTANTS.MB;
-        const GB = HealthMonitor.CONSTANTS.GB;
-
-        const used = performance.memory.usedJSHeapSize;
-        const limit = performance.memory.jsHeapSizeLimit;
-        const usage = (used / limit) * 100;
-
-        // Formatter en GB si >= 1GB
-        let memStr;
-        if (limit >= GB) {
-            const usedGB = used / GB;
-            const limitGB = limit / GB;
-            memStr = `${usedGB.toFixed(2)}/${limitGB.toFixed(2)}GB`;
-        } else {
-            const usedMB = used / MB;
-            const limitMB = limit / MB;
-            memStr = `${Math.round(usedMB)}/${Math.round(limitMB)}MB`;
-        }
-
-        // Formatage du pourcentage
-        const usageStr = usage < 0.1 ? usage.toFixed(2) : usage.toFixed(1);
-
-        return `Mem: ${memStr} (${usageStr}%)`;
     }
 
     /**
@@ -264,17 +232,184 @@ class HealthMonitor {
     /**
      * Récupère les statistiques actuelles
      */
-    getStats() {
+    async getStats() {
+        const memoryInfo = await this.getDetailedMemoryInfo();
+
         return {
             ...this.stats,
-            memoryInfo: this.getDetailedMemoryInfo()
+            memoryInfo: memoryInfo
         };
     }
 
     /**
- * Récupère des informations détaillées sur la mémoire
- */
-    getDetailedMemoryInfo() {
+     * Détecte si l'API mémoire complète est disponible
+     */
+    isFullMemoryAPIAvailable() {
+        // Vérifications progressives
+        if (!window.crossOriginIsolated) {
+            console.log('📴 API mémoire complète indisponible : isolation cross-origin requise');
+            return false;
+        }
+
+        if (!performance.measureUserAgentSpecificMemory) {
+            console.log('📴 API mémoire complète indisponible : navigateur non supporté');
+            return false;
+        }
+
+        console.log('✅ API mémoire complète disponible');
+        return true;
+    }
+    /**
+         * Récupère les informations mémoire formatées - VERSION COMPLÈTE
+         */
+    async getMemoryInfo() {
+        // Essayer l'API complète seulement si disponible
+        if (this.isFullMemoryAPIAvailable()) {
+            try {
+                return await this.getFullMemoryInfo();
+            } catch (error) {
+                if (error instanceof DOMException && error.name === 'SecurityError') {
+                    console.warn('⚠️ Contexte non sécurisé pour API mémoire');
+                } else {
+                    console.warn('⚠️ Erreur API mémoire complète:', error);
+                }
+                // Fallback en cas d'erreur
+            }
+        }
+
+        // Utiliser l'API JS classique
+        return this.getFallbackMemoryInfo();
+    }
+
+    /**
+     * Récupère les informations mémoire complètes (toute la page)
+     */
+    async getFullMemoryInfo() {
+        try {
+            const memoryInfo = await performance.measureUserAgentSpecificMemory();
+            const MB = HealthMonitor.CONSTANTS.MB;
+            const GB = HealthMonitor.CONSTANTS.GB;
+
+            // Calculer la mémoire totale utilisée par tous les composants
+            let totalBytes = 0;
+            memoryInfo.breakdown.forEach(entry => {
+                totalBytes += entry.bytes;
+            });
+
+            // Formatter la mémoire totale
+            let totalStr;
+            if (totalBytes >= GB) {
+                totalStr = `${(totalBytes / GB).toFixed(1)}GB`;
+            } else {
+                totalStr = `${(totalBytes / MB).toFixed(1)}MB`;
+            }
+
+            // Essayer d'estimer la limite (navigateur-dépendant)
+            let limitInfo = '';
+            if (performance.memory) {
+                const jsLimit = performance.memory.jsHeapSizeLimit;
+                // Estimation: la limite totale est généralement 2-4x la limite JS
+                const estimatedTotalLimit = jsLimit * 3;
+                const usage = (totalBytes / estimatedTotalLimit) * 100;
+
+                let limitStr;
+                if (estimatedTotalLimit >= GB) {
+                    limitStr = `${(estimatedTotalLimit / GB).toFixed(1)}GB`;
+                } else {
+                    limitStr = `${(estimatedTotalLimit / MB).toFixed(1)}MB`;
+                }
+
+                limitInfo = `/${limitStr} (${usage.toFixed(1)}%)`;
+            }
+
+            return `Page: ${totalStr}${limitInfo}`;
+
+        } catch (error) {
+            console.warn('⚠️ API mémoire complète non disponible:', error);
+            return this.getFallbackMemoryInfo();
+        }
+    }
+
+    /**
+     * Version fallback avec info JS uniquement
+     */
+    getFallbackMemoryInfo() {
+        if (!performance.memory) return null;
+
+        const MB = HealthMonitor.CONSTANTS.MB;
+        const GB = HealthMonitor.CONSTANTS.GB;
+
+        const used = performance.memory.usedJSHeapSize;
+        const total = performance.memory.totalJSHeapSize;
+        const limit = performance.memory.jsHeapSizeLimit;
+
+        // Utiliser total au lieu de used pour avoir une meilleure estimation
+        const effectiveUsed = Math.max(used, total);
+        const usage = (effectiveUsed / limit) * 100;
+
+        // Formatter chaque valeur
+        let usedStr;
+        if (effectiveUsed >= GB) {
+            usedStr = `${(effectiveUsed / GB).toFixed(1)}GB`;
+        } else {
+            usedStr = `${(effectiveUsed / MB).toFixed(1)}MB`;
+        }
+
+        let limitStr;
+        if (limit >= GB) {
+            limitStr = `${(limit / GB).toFixed(1)}GB`;
+        } else {
+            limitStr = `${(limit / MB).toFixed(1)}MB`;
+        }
+
+        let usageStr;
+        if (usage < 0.1) {
+            usageStr = usage.toFixed(2);
+        } else if (usage < 1) {
+            usageStr = usage.toFixed(1);
+        } else {
+            usageStr = Math.round(usage);
+        }
+
+        return `JS: ${usedStr}/${limitStr} (${usageStr}%)`;
+    }
+
+    /**
+     * Récupère des informations détaillées sur la mémoire
+     */
+    async getDetailedMemoryInfo() {
+        // Essayer d'abord l'API complète
+        if (typeof performance.measureUserAgentSpecificMemory === 'function') {
+            try {
+                const memoryInfo = await performance.measureUserAgentSpecificMemory();
+                const MB = HealthMonitor.CONSTANTS.MB;
+
+                let totalBytes = 0;
+                const breakdown = {};
+
+                memoryInfo.breakdown.forEach(entry => {
+                    totalBytes += entry.bytes;
+                    // Grouper par type d'attribution
+                    const type = entry.attribution?.[0]?.scope || 'unknown';
+                    breakdown[type] = (breakdown[type] || 0) + entry.bytes;
+                });
+
+                return {
+                    totalMB: Number((totalBytes / MB).toFixed(2)),
+                    breakdown: Object.fromEntries(
+                        Object.entries(breakdown).map(([key, bytes]) =>
+                            [key, Number((bytes / MB).toFixed(2))]
+                        )
+                    ),
+                    api: 'full',
+                    raw: memoryInfo
+                };
+            } catch (error) {
+                console.warn('⚠️ API mémoire complète échouée:', error);
+            }
+        }
+
+        // Fallback sur l'API JS classique
         if (!performance.memory) return null;
 
         const MB = HealthMonitor.CONSTANTS.MB;
@@ -288,6 +423,7 @@ class HealthMonitor {
             limitMB: Number((limit / MB).toFixed(2)),
             usagePercent: Number(((used / limit) * 100).toFixed(3)),
             totalUsagePercent: Number(((total / limit) * 100).toFixed(3)),
+            api: 'js-only',
             raw: { used, total, limit }
         };
     }
