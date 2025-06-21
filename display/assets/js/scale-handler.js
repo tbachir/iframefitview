@@ -406,26 +406,6 @@ class ScaleHandler {
     }
 
     /**
-     * Force une remesure
-     */
-    forceUpdate() {
-        if (this.isDestroyed) {
-            console.warn('⚠️ ScaleHandler détruit, impossible de forcer la mise à jour');
-            return;
-        }
-
-        console.log('🔄 Mise à jour forcée du scaling');
-        this.isReady = false;
-        this.invalidateDocumentCache();
-        
-        setTimeout(() => {
-            if (!this.isDestroyed) {
-                this.handleLoad();
-            }
-        }, this.config.loadDelay);
-    }
-
-    /**
      * Récupère les informations de scaling
      */
     getScaleInfo() {

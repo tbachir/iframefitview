@@ -31,7 +31,6 @@ const HEALTH_CONFIG = {
 
     // Monitoring avancé
     trackPerformanceMetrics: true,     // Surveiller Web Vitals
-    trackNetworkErrors: true,          // Surveiller erreurs réseau
     trackMemoryLeaks: true             // Détecter fuites mémoire
 };
 
@@ -1415,70 +1414,6 @@ class HealthMonitor {
         this.observers = null;
         this.boundMethods = null;
     }
-
-    /**
-     * Redémarre le monitoring
-     */
-    restart() {
-        console.log('🔄 Redémarrage HealthMonitor');
-        this.cleanup();
-
-        // Réinitialiser les propriétés
-        this.isInitialized = false;
-        this.isActive = false;
-
-        // Reconstruire l'état initial
-        this.state = {
-            startTime: Date.now(),
-            uptime: 0,
-            healthScore: 100,
-            status: 'initializing',
-            refreshCount: 0,
-            systemErrorCount: 0,
-            networkErrorCount: 0,
-            recoveryAttempts: 0,
-            memoryWarnings: 0,
-            lastError: null,
-            lastMemoryCheck: null,
-            lastPerformanceCheck: null,
-            memoryHistory: [],
-            performanceHistory: [],
-            errorHistory: []
-        };
-
-        this.metrics = {
-            memoryPeak: 0,
-            slowOperations: 0,
-            networkErrors: 0,
-            crashRecoveries: 0
-        };
-
-        this.timers = {
-            healthCheck: null,
-            memoryCheck: null,
-            uiUpdate: null,
-            preventiveReload: null
-        };
-
-        this.ui = {
-            button: null,
-            overlay: null,
-            panel: null,
-        };
-
-        this.observers = {
-            performance: null,
-        };
-
-        this.boundMethods = {
-            handleError: this.handleGlobalError.bind(this),
-            handleRejection: this.handleUnhandledRejection.bind(this),
-            handleResourceError: this.handleResourceError.bind(this)
-        };
-
-        // Redémarrer
-        setTimeout(() => this.init(), 100);
-    }
 }
 
 // =============================================================================
@@ -1511,7 +1446,6 @@ class HealthMonitor {
                     getMetrics: () => window.healthMonitor.metrics,
                     forceHealthCheck: () => window.healthMonitor.forceHealthCheck(),
                     forceRecovery: () => window.healthMonitor.forceRecovery(),
-                    restart: () => window.healthMonitor.restart(),
                     cleanup: () => window.healthMonitor.cleanup(),
 
                     // Helpers pour ThinManager/Shadow

@@ -130,11 +130,6 @@ class DisplayManager {
 
         // Réinitialiser le compteur de retry
         this.retryCount = 0;
-
-        // Enregistrer le succès dans le monitoring
-        if (this.isMonitoringEnabled()) {
-            this.recordSuccess('iframe_loaded');
-        }
     }
 
     /**
@@ -316,20 +311,6 @@ class DisplayManager {
                 });
             } catch (e) {
                 console.warn('Erreur lors de l\'enregistrement dans healthMonitor:', e);
-            }
-        }
-    }
-
-    /**
-     * Enregistre un succès dans le monitoring (sécurisé)
-     */
-    recordSuccess(type) {
-        if (window.healthMonitor && typeof window.healthMonitor.recordRefresh === 'function') {
-            try {
-                // Utiliser recordRefresh comme indicateur de succès général
-                window.healthMonitor.recordRefresh();
-            } catch (error) {
-                console.warn('Erreur lors de l\'enregistrement du succès:', error);
             }
         }
     }
