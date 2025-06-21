@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <title>HuddleBoard Display</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="health-monitor/health-monitor.css">
 </head>
 
 <body>
@@ -22,76 +23,385 @@
     <!-- Application principale -->
     <script>
         /**
-         * Core Application - Point d'entrée principal
+         * Centralized Error Reporting Utility
+         */
+        class ErrorReporter {
+            constructor(healthMonitor = null) {
+                this.healthMonitor = healthMonitor || window.healthMonitor;
+            }
+
+            report(error, context = {}) {
+                const errorData = this.formatError(error, context);
+                
+                if (this.tryHealthMonitorReport(errorData)) return;
+                this.fallbackReport(errorData);
+            }
+
+            reportWarning(message, context = {}) {
+                this.report(new Error(message), { ...context, severity: 'warning' });
+            }
+
+            reportInfo(message, context = {}) {
+                this.report(new Error(message), { ...context, severity: 'info' });
+            }
+
+            formatError(error, context) {
+                return {
+                    type: context.type || 'unknown',
+                    message: error?.message || String(error) || 'Unknown error',
+                    source: context.source || 'Unknown',
+                    severity: context.severity || 'error',
+                    timestamp: Date.now(),
+                    stack: error?.stack,
+                    metadata: context.metadata || {}
+                };
+            }
+
+            tryHealthMonitorReport(errorData) {
+                if (!this.healthMonitor?.recordError) return false;
+                
+                try {
+                    this.healthMonitor.recordError(errorData);
+                    return true;
+                } catch (e) {
+                    console.warn('Health monitor error reporting failed:', e);
+                    return false;
+                }
+            }
+
+            fallbackReport(errorData) {
+                const logMethod = this.getLogMethod(errorData.severity);
+                logMethod(`[${errorData.source}] ${errorData.message}`, errorData);
+            }
+
+            getLogMethod(severity) {
+                switch (severity) {
+                    case 'warning': return console.warn.bind(console);
+                    case 'info': return console.info.bind(console);
+                    default: return console.error.bind(console);
+                }
+            }
+
+            createSourceReporter(source) {
+                return {
+                    report: (error, context = {}) => this.report(error, { ...context, source }),
+                    reportWarning: (message, context = {}) => this.reportWarning(message, { ...context, source }),
+                    reportInfo: (message, context = {}) => this.reportInfo(message, { ...context, source })
+                };
+            }
+        }
+
+        /**
+         * Event Management Utility
+         */
+        class EventManager {
+            constructor() {
+                this.listeners = new Map();
+            }
+
+            add(element, event, handler, options = {}) {
+                const key = this.createKey(element, event, handler);
+                element.addEventListener(event, handler, options);
+                this.listeners.set(key, { element, event, handler, options });
+            }
+
+            remove(element, event, handler) {
+                const key = this.createKey(element, event, handler);
+                const listener = this.listeners.get(key);
+                if (listener) {
+                    element.removeEventListener(event, handler);
+                    this.listeners.delete(key);
+                }
+            }
+
+            removeAll() {
+                for (const [key, listener] of this.listeners) {
+                    listener.element.removeEventListener(listener.event, listener.handler);
+                }
+                this.listeners.clear();
+            }
+
+            createKey(element, event, handler) {
+                return `${element.tagName || 'unknown'}_${event}_${handler.name || 'anonymous'}`;
+            }
+        }
+
+        /**
+         * Unified Banner Management System
+         */
+        class BannerManager {
+            constructor() {
+                this.activeBanners = new Map();
+                this.elementCache = new Map();
+                this.templates = {
+                    status: { 
+                        class: 'status-banner bottom-left',
+                        template: (data) => `
+                            <div class="status-indicator ${data.statusClass}"></div>
+                            <div class="status-text">
+                                <div class="status-primary">${data.statusText}</div>
+                                <div class="status-secondary">${data.secondaryText}</div>
+                            </div>
+                        `
+                    },
+                    modif: {
+                        class: 'modif-banner bottom-right',
+                        template: (data) => `
+                            <svg class="modif-icon" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
+                            </svg>
+                            <div class="modif-text">
+                                <div class="modif-primary">Synchronisé</div>
+                                <div class="modif-time">${data.timeAgo}</div>
+                            </div>
+                        `
+                    },
+                    loading: {
+                        class: 'loading-banner bottom-right',
+                        template: (data) => `
+                            <div class="loading-spinner"></div>
+                            <span>${data.message}</span>
+                        `
+                    },
+                    error: {
+                        class: 'error-banner bottom-right',
+                        template: (data) => `
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                            </svg>
+                            <span>${data.message}</span>
+                        `
+                    },
+                    warning: {
+                        class: 'warning-banner bottom-right',
+                        template: (data) => `
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                            </svg>
+                            <span>${data.message}</span>
+                        `
+                    }
+                };
+            }
+
+            show(type, data, options = {}) {
+                const template = this.templates[type];
+                if (!template) {
+                    console.warn(`Unknown banner type: ${type}`);
+                    return null;
+                }
+
+                const bannerId = options.id || `${type}-banner`;
+                const element = this.getOrCreateElement(bannerId, template.class);
+                element.innerHTML = template.template(data);
+
+                this.activeBanners.set(bannerId, {
+                    element,
+                    type,
+                    timer: options.duration > 0 ? 
+                        setTimeout(() => this.hide(bannerId), options.duration) : null
+                });
+
+                return element;
+            }
+
+            hide(bannerId) {
+                const banner = this.activeBanners.get(bannerId);
+                if (banner) {
+                    if (banner.timer) clearTimeout(banner.timer);
+                    banner.element.remove();
+                    this.activeBanners.delete(bannerId);
+                    this.elementCache.delete(bannerId);
+                }
+            }
+
+            update(bannerId, data) {
+                const banner = this.activeBanners.get(bannerId);
+                if (banner) {
+                    const template = this.templates[banner.type];
+                    banner.element.innerHTML = template.template(data);
+                }
+            }
+
+            getOrCreateElement(id, className) {
+                let element = this.elementCache.get(id);
+                if (!element || !document.body.contains(element)) {
+                    element = document.createElement('div');
+                    element.id = id;
+                    element.className = `banner ${className}`;
+                    document.body.appendChild(element);
+                    this.elementCache.set(id, element);
+                }
+                return element;
+            }
+
+            cleanup() {
+                for (const [bannerId, banner] of this.activeBanners) {
+                    if (banner.timer) clearTimeout(banner.timer);
+                    banner.element.remove();
+                }
+                this.activeBanners.clear();
+                this.elementCache.clear();
+            }
+        }
+
+        /**
+         * Time Formatting Utility
+         */
+        class TimeFormatter {
+            static readonly MILLISECONDS_PER_MINUTE = 60000;
+            static readonly MINUTES_PER_HOUR = 60;
+            static readonly HOURS_PER_DAY = 24;
+
+            static formatTimeAgo(date) {
+                const now = new Date();
+                const diffMs = now.getTime() - date.getTime();
+                const diffMinutes = Math.floor(diffMs / this.MILLISECONDS_PER_MINUTE);
+
+                if (diffMinutes < 1) return 'à l\'instant';
+                if (diffMinutes < this.MINUTES_PER_HOUR) {
+                    return `il y a ${diffMinutes}min`;
+                }
+
+                const diffHours = Math.floor(diffMinutes / this.MINUTES_PER_HOUR);
+                if (diffHours < this.HOURS_PER_DAY) {
+                    return `il y a ${diffHours}h`;
+                }
+
+                const diffDays = Math.floor(diffHours / this.HOURS_PER_DAY);
+                return `il y a ${diffDays}j`;
+            }
+
+            static formatTime(date) {
+                return date ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+            }
+        }
+
+        /**
+         * Configuration Validator
+         */
+        class ConfigValidator {
+            static validate(config) {
+                const errors = [];
+                
+                if (!config) {
+                    errors.push('Configuration object is required');
+                    return { isValid: false, errors };
+                }
+                
+                if (typeof config.defaultRefreshInterval !== 'number' || config.defaultRefreshInterval < 1000) {
+                    errors.push('defaultRefreshInterval must be a number >= 1000ms');
+                }
+                
+                if (!Array.isArray(config.displays)) {
+                    errors.push('displays must be an array');
+                } else {
+                    config.displays.forEach((display, index) => {
+                        errors.push(...this.validateDisplay(display, index));
+                    });
+                }
+                
+                return {
+                    isValid: errors.length === 0,
+                    errors
+                };
+            }
+            
+            static validateDisplay(display, index) {
+                const errors = [];
+                const prefix = `displays[${index}]`;
+                
+                if (!display || typeof display !== 'object') {
+                    errors.push(`${prefix} must be an object`);
+                    return errors;
+                }
+                
+                if (!display.name || typeof display.name !== 'string') {
+                    errors.push(`${prefix}.name is required and must be a string`);
+                }
+                
+                if (!display.slug || !/^[a-z0-9-]+$/.test(display.slug)) {
+                    errors.push(`${prefix}.slug must be alphanumeric with hyphens only`);
+                }
+                
+                if (!display.path || typeof display.path !== 'string') {
+                    errors.push(`${prefix}.path is required and must be a string`);
+                }
+                
+                return errors;
+            }
+        }
+
+        /**
+         * Core Application - Refactored with utilities
          */
         class Core {
             constructor() {
                 this.display = null;
                 this.displayManager = null;
+                this.errorReporter = new ErrorReporter();
+                this.bannerManager = new BannerManager();
+                this.modifBannerTimer = null;
             }
 
-            /**
-             * Initialise l'application
-             */
             init() {
                 console.log('🚀 Initialisation HuddleBoard Display');
 
-                // Valider et charger la configuration
-                if (!this.validateConfig()) {
+                try {
+                    if (!this.validateConfig()) {
+                        this.showConfigError();
+                        return;
+                    }
+
+                    if (!this.loadDisplay()) {
+                        this.showDisplayError();
+                        return;
+                    }
+
+                    this.initDisplayManager();
+                    console.log('✅ HuddleBoard Display initialisé avec succès');
+                } catch (error) {
+                    this.errorReporter.report(error, {
+                        type: 'core_init_error',
+                        source: 'Core'
+                    });
                     this.showConfigError();
-                    return;
                 }
-
-                // Trouver et charger le display
-                if (!this.loadDisplay()) {
-                    this.showDisplayError();
-                    return;
-                }
-
-                // Initialiser le gestionnaire d'affichage
-                this.initDisplayManager();
-
-                console.log('✅ HuddleBoard Display initialisé avec succès');
             }
 
-            /**
-             * Valide la configuration globale
-             */
             validateConfig() {
-                if (!window.AppConfig) {
-                    console.error('❌ window.AppConfig non trouvé');
+                const validation = ConfigValidator.validate(window.AppConfig);
+                if (!validation.isValid) {
+                    this.errorReporter.report(new Error('Configuration validation failed'), {
+                        type: 'config_validation_error',
+                        source: 'Core',
+                        metadata: { errors: validation.errors }
+                    });
                     return false;
                 }
-
-                if (!window.AppConfig.displays || !Array.isArray(window.AppConfig.displays)) {
-                    console.error('❌ AppConfig.displays manquant ou invalide');
-                    return false;
-                }
-
-                if (window.AppConfig.displays.length === 0) {
-                    console.error('❌ Aucun display configuré');
-                    return false;
-                }
-
                 return true;
             }
 
-            /**
-             * Charge le display basé sur l'URL
-             */
             loadDisplay() {
                 const hash = window.location.hash;
                 const slug = hash?.startsWith('#/') ? hash.substring(2) : null;
 
                 if (!slug) {
-                    console.error('❌ Slug manquant dans l\'URL');
+                    this.errorReporter.reportWarning('Missing slug in URL', {
+                        type: 'missing_slug',
+                        source: 'Core'
+                    });
                     return false;
                 }
 
                 this.display = window.AppConfig.displays.find(d => d?.slug === slug);
 
                 if (!this.display) {
-                    console.error(`❌ Display '${slug}' non trouvé`);
+                    this.errorReporter.reportWarning(`Display '${slug}' not found`, {
+                        type: 'display_not_found',
+                        source: 'Core',
+                        metadata: { slug }
+                    });
                     return false;
                 }
 
@@ -99,17 +409,11 @@
                 return true;
             }
 
-            /**
-             * Initialise le gestionnaire d'affichage
-             */
             initDisplayManager() {
-                this.displayManager = new DisplayManager(this.display);
+                this.displayManager = new DisplayManager(this.display, this.errorReporter);
                 this.displayManager.render();
             }
 
-            /**
-             * Affiche une erreur de configuration
-             */
             showConfigError() {
                 document.getElementById('app').innerHTML = `
                     <div style="padding: 50px; text-align: center; font-family: Arial; color: #dc2626;">
@@ -120,9 +424,6 @@
                 `;
             }
 
-            /**
-             * Affiche une erreur de display
-             */
             showDisplayError() {
                 const hash = window.location.hash?.substring(2) || 'unknown';
                 document.getElementById('app').innerHTML = `
@@ -134,16 +435,94 @@
                 `;
             }
 
-            /**
-             * Nettoie les ressources avant fermeture - VERSION AMÉLIORÉE
-             */
+            // Unified banner methods using BannerManager
+            showModifBanner(date = new Date()) {
+                try {
+                    localStorage.setItem('hb_sync', date.getTime());
+                } catch (e) {
+                    console.warn('Impossible de sauvegarder la date de sync:', e);
+                }
+
+                if (this.modifBannerTimer) {
+                    clearInterval(this.modifBannerTimer);
+                }
+
+                const updateTime = () => {
+                    try {
+                        const lastSync = localStorage.getItem('hb_sync');
+                        const syncDate = lastSync ? new Date(parseInt(lastSync)) : date;
+                        const timeAgo = TimeFormatter.formatTimeAgo(syncDate);
+
+                        this.bannerManager.update('modif-banner', { timeAgo });
+                    } catch (e) {
+                        console.warn('Erreur lors de la mise à jour du banner:', e);
+                    }
+                };
+
+                const timeAgo = TimeFormatter.formatTimeAgo(date);
+                this.bannerManager.show('modif', { timeAgo }, { id: 'modif-banner' });
+                
+                updateTime();
+                this.modifBannerTimer = setInterval(updateTime, 60000);
+            }
+
+            showStatusBanner(date, ok = true, errorCount = 0) {
+                this.showStatusBanner.lastDate = ok && date ? date : this.showStatusBanner.lastDate;
+
+                let statusClass, statusText, secondaryText;
+
+                if (!ok) {
+                    statusClass = 'status-fail';
+                    statusText = 'Hors ligne';
+                    secondaryText = 'Reconnexion...';
+                } else if (errorCount > 5) {
+                    statusClass = 'status-warning';
+                    statusText = 'Instable';
+                    secondaryText = `${errorCount} erreurs`;
+                } else {
+                    statusClass = 'status-online';
+                    statusText = 'En ligne';
+                    secondaryText = TimeFormatter.formatTime(this.showStatusBanner.lastDate);
+                }
+
+                this.bannerManager.show('status', {
+                    statusClass,
+                    statusText,
+                    secondaryText
+                }, { id: 'status-banner' });
+            }
+
+            showLoadingBanner(message = 'Chargement...') {
+                this.bannerManager.show('loading', { message }, { id: 'loading-banner' });
+            }
+
+            showErrorBanner(message, duration = 5000) {
+                this.bannerManager.show('error', { message }, { 
+                    id: 'error-banner',
+                    duration 
+                });
+            }
+
+            showWarningBanner(message, duration = 5000) {
+                this.bannerManager.show('warning', { message }, { 
+                    id: 'warning-banner',
+                    duration 
+                });
+            }
+
+            hideLoadingBanner() {
+                this.bannerManager.hide('loading-banner');
+            }
+
             cleanup() {
                 console.log('🧹 Nettoyage Core Application');
 
-                // Nettoyer les banners et leurs timers
-                if (typeof window.cleanupBanners === 'function') {
-                    window.cleanupBanners();
+                if (this.modifBannerTimer) {
+                    clearInterval(this.modifBannerTimer);
+                    this.modifBannerTimer = null;
                 }
+
+                this.bannerManager.cleanup();
 
                 if (this.displayManager) {
                     this.displayManager.cleanup();
@@ -153,9 +532,6 @@
                 this.display = null;
             }
 
-            /**
-             * Récupère les informations de l'application
-             */
             async getAppInfo() {
                 return {
                     display: this.display ? {
@@ -168,9 +544,6 @@
                 };
             }
 
-            /**
-             * Récupère les informations de dernière synchronisation
-             */
             getLastSyncInfo() {
                 try {
                     const lastSync = localStorage.getItem('hb_sync');
@@ -179,7 +552,7 @@
                         return {
                             timestamp: parseInt(lastSync),
                             date: date.toLocaleString(),
-                            timeAgo: this.getTimeAgo(date)
+                            timeAgo: TimeFormatter.formatTimeAgo(date)
                         };
                     }
                 } catch (e) {
@@ -187,227 +560,40 @@
                 }
                 return null;
             }
-
-            /**
-             * Calcule le temps écoulé depuis une date
-             */
-            getTimeAgo(date) {
-                const now = new Date();
-                const diffMs = now - date;
-                const diffMins = Math.floor(diffMs / 60000);
-
-                if (diffMins < 1) return 'à l\'instant';
-                if (diffMins < 60) return `il y a ${diffMins}min`;
-
-                const diffHours = Math.floor(diffMins / 60);
-                if (diffHours < 24) return `il y a ${diffHours}h`;
-
-                const diffDays = Math.floor(diffHours / 24);
-                return `il y a ${diffDays}j`;
-            }
         }
 
-        /**
-         * Fonctions utilitaires globales
-         */
-
-        let modifBannerTimer = null;
-
-        function getOrCreateBanner(id, classes) {
-            let el = document.getElementById(id);
-            if (!el) {
-                el = document.createElement('div');
-                el.id = id;
-                el.className = classes;
-                document.body.appendChild(el);
-            }
-            return el;
-        }
-
-        function formatTime(date) {
-            return date
-                ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                : '—';
-        }
-
-        function showModifBanner(date = new Date()) {
-            const el = getOrCreateBanner('modif-banner', 'banner modif-banner bottom-right');
-
-            // Sauvegarder la nouvelle date de modification
-            try {
-                localStorage.setItem('hb_sync', date.getTime());
-            } catch (e) {
-                console.warn('Impossible de sauvegarder la date de sync:', e);
-            }
-
-            // Nettoyer le timer existant pour éviter les doublons
-            if (modifBannerTimer) {
-                clearInterval(modifBannerTimer);
-                modifBannerTimer = null;
-            }
-
-            function updateTime() {
-                try {
-                    const lastSync = localStorage.getItem('hb_sync');
-                    // Utiliser la date sauvegardée ou celle passée en paramètre
-                    const syncDate = lastSync ? new Date(parseInt(lastSync)) : date;
-                    const timeAgo = getTimeAgo(syncDate);
-
-                    el.innerHTML = `
-                        <svg class="modif-icon" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
-                        </svg>
-                        <div class="modif-text">
-                            <div class="modif-primary">Synchronisé</div>
-                            <div class="modif-time">${timeAgo}</div>
-                        </div>
-                    `;
-                } catch (e) {
-                    console.warn('Erreur lors de la mise à jour du banner:', e);
-                }
-            }
-
-            // Mise à jour immédiate
-            updateTime();
-
-            // Programmer les mises à jour futures
-            modifBannerTimer = setInterval(updateTime, 60000); // Mise à jour chaque minute
-        }
-
-        function showStatusBanner(date, ok = true, errorCount = 0) {
-            showStatusBanner.lastDate = ok && date ? date : showStatusBanner.lastDate;
-            const el = getOrCreateBanner('status-banner', 'banner status-banner bottom-left');
-
-            let statusClass, statusText, secondaryText;
-
-            if (!ok) {
-                statusClass = 'status-fail';
-                statusText = 'Hors ligne';
-                secondaryText = 'Reconnexion...';
-            } else if (errorCount > 5) {
-                statusClass = 'status-warning';
-                statusText = 'Instable';
-                secondaryText = `${errorCount} erreurs`;
-            } else {
-                statusClass = 'status-online';
-                statusText = 'En ligne';
-                secondaryText = formatTime(showStatusBanner.lastDate);
-            }
-
-            el.innerHTML = `
-                <div class="status-indicator ${statusClass}"></div>
-                <div class="status-text">
-                    <div class="status-primary">${statusText}</div>
-                    <div class="status-secondary">${secondaryText}</div>
-                </div>
-            `;
-        }
-
-        function getTimeAgo(date) {
-            const now = new Date();
-            const diffMs = now - date;
-            const diffMins = Math.floor(diffMs / 60000);
-
-            if (diffMins < 1) return 'à l\'instant';
-            if (diffMins < 60) return `il y a ${diffMins}min`;
-
-            const diffHours = Math.floor(diffMins / 60);
-            if (diffHours < 24) return `il y a ${diffHours}h`;
-
-            const diffDays = Math.floor(diffHours / 24);
-            return `il y a ${diffDays}j`;
-        }
-
-        function showLoadingBanner(message = 'Chargement...') {
-            const el = getOrCreateBanner('loading-banner', 'banner loading-banner bottom-right');
-            el.innerHTML = `
-                <div class="loading-spinner"></div>
-                <span>${message}</span>
-            `;
-        }
-
-        function showErrorBanner(message, duration = 5000) {
-            const el = getOrCreateBanner('error-banner', 'banner error-banner bottom-right');
-            el.innerHTML = `
-                <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                </svg>
-                <span>${message}</span>
-            `;
-
-            if (duration > 0) {
-                setTimeout(() => {
-                    el.remove();
-                }, duration);
-            }
-        }
-
-        function showWarningBanner(message, duration = 5000) {
-            const el = getOrCreateBanner('warning-banner', 'banner warning-banner bottom-right');
-            el.innerHTML = `
-                <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                </svg>
-                <span>${message}</span>
-            `;
-
-            if (duration > 0) {
-                setTimeout(() => {
-                    el.remove();
-                }, duration);
-            }
-        }
-
-        function hideLoadingBanner() {
-            const el = document.getElementById('loading-banner');
-            if (el) el.remove();
-        }
-
-        // Fonction de nettoyage pour éviter les fuites mémoire
-        function cleanupBanners() {
-            if (modifBannerTimer) {
-                clearInterval(modifBannerTimer);
-                modifBannerTimer = null;
-            }
-        }
-
-        // Rendre les fonctions accessibles globalement
-        window.getOrCreateBanner = getOrCreateBanner;
-        window.formatTime = formatTime;
-        window.showModifBanner = showModifBanner;
-        window.showStatusBanner = showStatusBanner;
-        window.cleanupBanners = cleanupBanners;
-
-        /**
-         * Initialisation et gestion du cycle de vie
-         */
-
-        // Instance globale de l'application
+        // Global instances
         const app = new Core();
+        const globalErrorReporter = new ErrorReporter();
 
-        // Nettoyage avant déchargement de la page
-        window.addEventListener('beforeunload', () => {
-            app.cleanup();
-        });
+        // Make utilities globally available for backward compatibility
+        window.showModifBanner = (date) => app.showModifBanner(date);
+        window.showStatusBanner = (date, ok, errorCount) => app.showStatusBanner(date, ok, errorCount);
+        window.showLoadingBanner = (message) => app.showLoadingBanner(message);
+        window.showErrorBanner = (message, duration) => app.showErrorBanner(message, duration);
+        window.showWarningBanner = (message, duration) => app.showWarningBanner(message, duration);
+        window.hideLoadingBanner = () => app.hideLoadingBanner();
+        window.cleanupBanners = () => app.bannerManager.cleanup();
+        window.ErrorReporter = ErrorReporter;
+        window.TimeFormatter = TimeFormatter;
 
-        // Gestion des changements de hash (navigation)
+        // Event handlers
+        window.addEventListener('beforeunload', () => app.cleanup());
         window.addEventListener('hashchange', () => {
             console.log('🔄 Changement de hash détecté, rechargement...');
             app.cleanup();
             setTimeout(() => app.init(), 100);
         });
 
-        // Initialisation au chargement de la page
+        // Initialize
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => app.init());
         } else {
             app.init();
         }
 
-        // Exposer l'application pour le debug
+        // Expose for debugging
         window.HuddleBoardApp = app;
-
-        // Commandes de debug utiles
         window.debug = {
             getAppInfo: () => app.getAppInfo(),
             forceRefresh: () => app.displayManager?.forceRefresh(),
