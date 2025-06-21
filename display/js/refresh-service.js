@@ -238,6 +238,9 @@ class RefreshService {
         if (content && this.hasContentChanged(content)) {
             console.log('📄 Contenu modifié détecté, rechargement...');
             this.reloadIframe(url);
+            
+            // Stocker et afficher la modification
+            try { localStorage.setItem('hb_sync', timestamp.getTime()); } catch(e) {}
             this.showModifBanner(timestamp);
         }
 
