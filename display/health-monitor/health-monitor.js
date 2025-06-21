@@ -82,10 +82,8 @@ class HealthMonitor {
         // Éléments UI
         this.ui = {
             button: null,
-            tooltip: null,
             overlay: null,
             panel: null,
-            isTooltipVisible: false
         };
 
         // Métriques performance
@@ -525,10 +523,6 @@ class HealthMonitor {
         this.ui.button.id = 'health-monitor-button';
         this.ui.button.innerHTML = '🔍';
 
-        // Créer le tooltip
-        this.ui.tooltip = document.createElement('div');
-        this.ui.tooltip.id = 'health-monitor-tooltip';
-
         // Créer l'overlay pour le panneau détaillé
         this.ui.overlay = document.createElement('div');
         this.ui.overlay.id = 'health-monitor-overlay';
@@ -539,8 +533,6 @@ class HealthMonitor {
         this.ui.panel.innerHTML = this._createPanelHTML();
 
         // Events
-        this.ui.button.addEventListener('mouseenter', () => this._showTooltip());
-        this.ui.button.addEventListener('mouseleave', () => this._hideTooltip());
         this.ui.button.addEventListener('click', () => this._toggleDetailedPanel());
 
         this.ui.overlay.addEventListener('click', () => this._hideDetailedPanel());
@@ -560,7 +552,6 @@ class HealthMonitor {
 
         // Ajouter au DOM
         document.body.appendChild(this.ui.button);
-        document.body.appendChild(this.ui.tooltip);
         document.body.appendChild(this.ui.overlay);
         document.body.appendChild(this.ui.panel);
 
@@ -671,52 +662,6 @@ class HealthMonitor {
     }
 
     /**
-     * Affiche le tooltip
-     */
-    _showTooltip() {
-        if (!this.ui.tooltip) return;
-
-        this.ui.tooltip.innerHTML = this._generateTooltipContent();
-        this.ui.tooltip.classList.add('visible');
-        this.ui.isTooltipVisible = true;
-    }
-
-    /**
-     * Cache le tooltip
-     */
-    _hideTooltip() {
-        if (!this.ui.tooltip || !this.ui.isTooltipVisible) return;
-
-        this.ui.tooltip.classList.remove('visible');
-        this.ui.isTooltipVisible = false;
-    }
-
-    /**
-     * Génère le contenu du tooltip
-     */
-    _generateTooltipContent() {
-        const uptime = this._formatDuration(this.state.uptime);
-        const memInfo = this.state.lastMemoryCheck?.data;
-        const memText = memInfo ? `${memInfo.usedMB}MB/${memInfo.limitMB}MB (${memInfo.usagePercent}%)` : 'N/A';
-
-        const statusEmoji = {
-            healthy: '🟢',
-            warning: '🟡',
-            critical: '🔴',
-            initializing: '🔵'
-        };
-
-        return `${statusEmoji[this.state.status]} Health Score: ${this.state.healthScore.toFixed(1)}%
-⚡ Memory: ${memText}
-🕐 Uptime: ${uptime}
-🔄 Refresh: ${this.state.refreshCount} (${this.state.errorCount} err)
-📊 Performance: ${this._getPerformanceStatus()}
-🧠 API: ${memInfo?.api || 'unknown'}
-
-Click for detailed view`;
-    }
-
-    /**
      * Affiche/cache le panneau détaillé
      */
     _toggleDetailedPanel() {
@@ -734,7 +679,6 @@ Click for detailed view`;
         this._updatePanelContent();
         this.ui.overlay.classList.add('visible');
         this.ui.panel.classList.add('visible');
-        this._hideTooltip(); // Cacher le tooltip quand le panneau s'ouvre
     }
 
     /**
@@ -958,10 +902,6 @@ Click for detailed view`;
     _updateUI() {
         this._updateButtonAppearance();
 
-        if (this.ui.isTooltipVisible) {
-            this._showTooltip(); // Refresh content
-        }
-
         // Si le panneau est ouvert, mettre à jour son contenu
         if (this.ui.panel && this.ui.panel.classList.contains('visible')) {
             this._updatePanelContent();
@@ -1184,7 +1124,6 @@ Click for detailed view`;
 
         // Supprimer l'UI
         if (this.ui.button) this.ui.button.remove();
-        if (this.ui.tooltip) this.ui.tooltip.remove();
         if (this.ui.overlay) this.ui.overlay.remove();
         if (this.ui.panel) this.ui.panel.remove();
 
@@ -1244,10 +1183,8 @@ Click for detailed view`;
 
         this.ui = {
             button: null,
-            tooltip: null,
             overlay: null,
             panel: null,
-            isTooltipVisible: false
         };
 
         // Redémarrer

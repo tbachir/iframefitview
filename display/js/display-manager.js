@@ -45,7 +45,7 @@ class DisplayManager {
         if (window.healthMonitor && window.healthMonitor.isEnabled()) {
             this.loadTimeout = setTimeout(() => {
                 console.error('⏱️ Timeout chargement iframe');
-                window.healthMonitor.recordError('Iframe load timeout');
+                window.healthMonitor._recordError('Iframe load timeout');
                 this.reloadIframe();
             }, 30000);
 
@@ -58,7 +58,7 @@ class DisplayManager {
 
             this.iframe.addEventListener('error', (e) => {
                 console.error('❌ Erreur iframe:', e);
-                window.healthMonitor.recordError('Iframe error');
+                window.healthMonitor._recordError('Iframe error');
 
                 // Clear timeout on error too
                 if (this.loadTimeout) {

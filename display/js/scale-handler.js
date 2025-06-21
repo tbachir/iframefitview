@@ -82,7 +82,7 @@ class ScaleHandler {
         } catch (e) {
             console.error('❌ Erreur dans onLoad:', e);
             if (window.healthMonitor) {
-                window.healthMonitor.recordError(e);
+                window.healthMonitor._recordError(e);
             }
         }
     }
@@ -184,7 +184,7 @@ class ScaleHandler {
         } catch (e) {
             console.error('❌ Erreur dans applyScale:', e);
             if (window.healthMonitor) {
-                window.healthMonitor.recordError(e);
+                window.healthMonitor._recordError(e);
             }
         }
     }

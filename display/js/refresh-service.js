@@ -176,23 +176,20 @@ class RefreshService {
 
         console.error(`❌ Erreur refresh (tentative ${this.retryCount}/${this.config.maxRetries}):`, error);
 
-        // Afficher le statut d'erreur
+        // Utiliser la nouvelle banner de statut avec compteur d'erreurs
         if (window.showStatusBanner) {
-            window.showStatusBanner(undefined, false);
+            window.showStatusBanner(undefined, false, this.consecutiveErrors);
         }
 
-        // Enregistrer l'erreur dans le monitoring
         if (window.healthMonitor) {
-            window.healthMonitor.recordError(error);
+            window.healthMonitor._recordError(error);
         }
 
-        // Ralentir si trop d'erreurs consécutives
         if (window.healthMonitor && window.healthMonitor.shouldSlowDown(this.consecutiveErrors)) {
             console.log('⚠️ Trop d\'erreurs, ralentissement du refresh');
             this.slowDown();
         }
 
-        // Retry si pas trop de tentatives
         if (this.retryCount < this.config.maxRetries) {
             console.log(`🔄 Nouvelle tentative dans ${this.config.retryDelay}ms`);
             setTimeout(() => {
@@ -201,7 +198,7 @@ class RefreshService {
                 }
             }, this.config.retryDelay);
         } else {
-            this.retryCount = 0; // Reset pour le prochain cycle
+            this.retryCount = 0;
         }
     }
 
@@ -402,7 +399,7 @@ class RefreshService {
         });
         this.activeControllers.clear();
         this.abortController = null;
-        
+
         // Reset des propriétés
         this.isRefreshing = false;
         this.consecutiveErrors = 0;

@@ -28,7 +28,6 @@
             constructor() {
                 this.display = null;
                 this.displayManager = null;
-                this.healthMonitor = null;
             }
 
             /**
@@ -36,9 +35,6 @@
              */
             init() {
                 console.log('🚀 Initialisation HuddleBoard Display');
-
-                // Initialiser le monitoring de santé
-                this.initHealthMonitoring();
 
                 // Valider et charger la configuration
                 if (!this.validateConfig()) {
@@ -56,19 +52,6 @@
                 this.initDisplayManager();
 
                 console.log('✅ HuddleBoard Display initialisé avec succès');
-            }
-
-            /**
-             * Initialise le monitoring de santé
-             */
-            initHealthMonitoring() {
-                this.healthMonitor = new HealthMonitor();
-                const monitoringEnabled = this.healthMonitor.init();
-
-                // Rendre le monitor accessible globalement
-                window.healthMonitor = this.healthMonitor;
-
-                console.log(`${monitoringEnabled ? '🔍' : '📴'} Monitoring: ${monitoringEnabled ? 'Activé' : 'Désactivé'}`);
             }
 
             /**
@@ -162,12 +145,6 @@
                     this.displayManager = null;
                 }
 
-                if (this.healthMonitor) {
-                    this.healthMonitor.cleanup();
-                    this.healthMonitor = null;
-                    window.healthMonitor = null;
-                }
-
                 this.display = null;
             }
 
@@ -175,23 +152,12 @@
              * Récupère les informations de l'application
              */
             async getAppInfo() {
-                let healthStats = null;
-                if (this.healthMonitor) {
-                    try {
-                        healthStats = await this.healthMonitor.getStats(); 
-                    } catch (error) {
-                        console.warn('⚠️ Erreur récupération stats santé:', error);
-                    }
-                }
-
                 return {
                     display: this.display ? {
                         name: this.display.name,
                         slug: this.display.slug,
-                        path: this.display.path,
-                        monitoring: this.display.monitoring
+                        path: this.display.path
                     } : null,
-                    healthMonitoring: healthStats,
                     displayManager: this.displayManager ? this.displayManager.getDisplayInfo() : null
                 };
             }
@@ -219,14 +185,107 @@
         }
 
         function showModifBanner(date = new Date()) {
-            getOrCreateBanner('modif-banner', 'banner modif-banner').textContent =
-                `Last synced edition ${formatTime(date)}`;
+            const el = getOrCreateBanner('modif-banner', 'banner modif-banner bottom-right');
+            const timeAgo = getTimeAgo(date);
+
+            el.innerHTML = `
+        <svg class="modif-icon" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
+        </svg>
+        <div class="modif-text">
+            <div class="modif-primary">Synchronisé</div>
+            <div class="modif-time">${timeAgo}</div>
+        </div>
+    `;
         }
 
-        function showStatusBanner(date, ok = true) {
+        function showStatusBanner(date, ok = true, errorCount = 0) {
             showStatusBanner.lastDate = ok && date ? date : showStatusBanner.lastDate;
-            const el = getOrCreateBanner('status-banner', 'banner status-banner');
-            el.innerHTML = `<span class="status-indicator${ok ? '' : ' status-fail'}"></span><span>${formatTime(showStatusBanner.lastDate)}</span>`;
+            const el = getOrCreateBanner('status-banner', 'banner status-banner bottom-left');
+
+            let statusClass, statusText, secondaryText;
+
+            if (!ok) {
+                statusClass = 'status-fail';
+                statusText = 'Hors ligne';
+                secondaryText = 'Reconnexion...';
+            } else if (errorCount > 5) {
+                statusClass = 'status-warning';
+                statusText = 'Instable';
+                secondaryText = `${errorCount} erreurs`;
+            } else {
+                statusClass = 'status-online';
+                statusText = 'En ligne';
+                secondaryText = formatTime(showStatusBanner.lastDate);
+            }
+
+            el.innerHTML = `
+                <div class="status-indicator ${statusClass}"></div>
+                <div class="status-text">
+                    <div class="status-primary">${statusText}</div>
+                    <div class="status-secondary">${secondaryText}</div>
+                </div>
+            `;
+        }
+
+        function getTimeAgo(date) {
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+
+            if (diffMins < 1) return 'à l\'instant';
+            if (diffMins < 60) return `il y a ${diffMins}min`;
+
+            const diffHours = Math.floor(diffMins / 60);
+            if (diffHours < 24) return `il y a ${diffHours}h`;
+
+            const diffDays = Math.floor(diffHours / 24);
+            return `il y a ${diffDays}j`;
+        }
+
+        function showLoadingBanner(message = 'Chargement...') {
+            const el = getOrCreateBanner('loading-banner', 'banner loading-banner bottom-right');
+            el.innerHTML = `
+                <div class="loading-spinner"></div>
+                <span>${message}</span>
+            `;
+        }
+
+        function showErrorBanner(message, duration = 5000) {
+            const el = getOrCreateBanner('error-banner', 'banner error-banner bottom-right');
+            el.innerHTML = `
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+                <span>${message}</span>
+            `;
+            
+            if (duration > 0) {
+                setTimeout(() => {
+                    el.remove();
+                }, duration);
+            }
+        }
+
+        function showWarningBanner(message, duration = 5000) {
+            const el = getOrCreateBanner('warning-banner', 'banner warning-banner bottom-right');
+            el.innerHTML = `
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+                <span>${message}</span>
+            `;
+            
+            if (duration > 0) {
+                setTimeout(() => {
+                    el.remove();
+                }, duration);
+            }
+        }
+
+        function hideLoadingBanner() {
+            const el = document.getElementById('loading-banner');
+            if (el) el.remove();
         }
 
         // Rendre les fonctions accessibles globalement
@@ -268,13 +327,9 @@
         window.debug = {
             getAppInfo: () => app.getAppInfo(),
             forceRefresh: () => app.displayManager?.forceRefresh(),
-            getHealthStats: () => window.healthMonitor?.getStats(),
             getScaleInfo: () => app.displayManager?.scaleHandler?.getScaleInfo(),
             getRefreshStats: () => app.displayManager?.refreshService?.getStats(),
             setFillMode: (mode) => app.displayManager?.scaleHandler?.setFillMode(mode),
-            getMemoryInfo: async () => window.healthMonitor ? await window.healthMonitor.getMemoryInfo() : null,
-            getDetailedMemory: async () => window.healthMonitor ? await window.healthMonitor.getDetailedMemoryInfo() : null,
-            updateHealthBanner: async () => window.healthMonitor ? await window.healthMonitor.updateHealthBanner() : null
         };
 
         console.log('🛠️ Commandes debug disponibles: window.debug');
