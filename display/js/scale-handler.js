@@ -406,26 +406,6 @@ class ScaleHandler {
     }
 
     /**
-     * Change le mode de remplissage
-     */
-    setFillMode(mode) {
-        if (this.isDestroyed) return;
-
-        const validModes = ['contain', 'cover', 'fill', 'fit-width', 'fit-height'];
-        if (!validModes.includes(mode)) {
-            console.error(`❌ Mode de remplissage invalide: ${mode}`);
-            return;
-        }
-
-        console.log(`🔧 Changement de mode: ${this.config.fillMode} → ${mode}`);
-        this.config.fillMode = mode;
-
-        if (this.isReady) {
-            this.applyScale();
-        }
-    }
-
-    /**
      * Force une remesure
      */
     forceUpdate() {
@@ -482,28 +462,6 @@ class ScaleHandler {
     }
 
     /**
-     * Met à jour la configuration
-     */
-    updateConfig(newConfig) {
-        if (this.isDestroyed) return;
-
-        const oldConfig = { ...this.config };
-        this.config = { ...this.config, ...newConfig };
-
-        console.log('⚙️ Configuration scaling mise à jour');
-
-        // Appliquer immédiatement si nécessaire
-        const criticalChanges = ['fillMode', 'maxScale', 'minScale', 'centerContent'];
-        const shouldReapply = criticalChanges.some(key =>
-            newConfig[key] !== undefined && newConfig[key] !== oldConfig[key]
-        );
-
-        if (shouldReapply && this.isReady) {
-            this.applyScale();
-        }
-    }
-
-    /**
      * Enregistre une erreur dans le monitoring (sécurisé)
      */
     recordError(error) {
@@ -518,36 +476,6 @@ class ScaleHandler {
                 console.warn('Erreur lors de l\'enregistrement dans healthMonitor:', e);
             }
         }
-    }
-
-    /**
-     * Vérifie l'intégrité du gestionnaire
-     */
-    checkIntegrity() {
-        const issues = [];
-
-        if (this.isDestroyed) {
-            issues.push('Gestionnaire marqué comme détruit');
-        }
-
-        if (this.isReady && (!this.contentW || !this.contentH)) {
-            issues.push('Dimensions de contenu invalides');
-        }
-
-        if (this.iframe && this.isDestroyed) {
-            issues.push('Référence iframe conservée alors que le gestionnaire est détruit');
-        }
-
-        if (this.loadTimeout && this.isDestroyed) {
-            issues.push('Timeout actif alors que le gestionnaire est détruit');
-        }
-
-        if (issues.length > 0) {
-            console.warn('⚠️ Problèmes d\'intégrité ScaleHandler:', issues);
-            return false;
-        }
-
-        return true;
     }
 
     /**

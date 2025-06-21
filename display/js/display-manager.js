@@ -266,48 +266,6 @@ class DisplayManager {
     }
 
     /**
-     * Vérifie si l'iframe est accessible
-     */
-    isIframeAccessible() {
-        if (!this.iframe || this.isDestroyed) return false;
-
-        try {
-            return this.iframe.contentDocument !== null;
-        } catch (e) {
-            return false;
-        }
-    }
-
-    /**
-     * Récupère les informations du display
-     */
-    getDisplayInfo() {
-        if (this.isDestroyed) {
-            return {
-                isDestroyed: true,
-                name: null,
-                slug: null,
-                path: null,
-                refreshInterval: null,
-                monitoring: null,
-                isLoaded: false
-            };
-        }
-
-        return {
-            name: this.display.name,
-            slug: this.display.slug,
-            path: this.display.path,
-            refreshInterval: this.display.refreshInterval,
-            monitoring: this.display.monitoring,
-            isLoaded: this.isIframeAccessible(),
-            retryCount: this.retryCount,
-            hasTimeout: this.loadTimeout !== null,
-            isDestroyed: this.isDestroyed
-        };
-    }
-
-    /**
      * Force un refresh du contenu
      */
     forceRefresh() {
@@ -374,50 +332,6 @@ class DisplayManager {
                 console.warn('Erreur lors de l\'enregistrement du succès:', error);
             }
         }
-    }
-
-    /**
-     * Met à jour la configuration du manager
-     */
-    updateConfig(newConfig) {
-        if (this.isDestroyed) return;
-
-        this.config = { ...this.config, ...newConfig };
-        console.log('⚙️ Configuration DisplayManager mise à jour:', newConfig);
-    }
-
-    /**
-     * Vérifie l'intégrité du manager
-     */
-    checkIntegrity() {
-        const issues = [];
-
-        if (this.isDestroyed) {
-            issues.push('Manager marqué comme détruit');
-        }
-
-        if (!this.display) {
-            issues.push('Configuration display manquante');
-        }
-
-        if (!this.iframe && !this.isDestroyed) {
-            issues.push('Iframe manquante alors que le manager est actif');
-        }
-
-        if (this.loadTimeout && this.isDestroyed) {
-            issues.push('Timeout actif alors que le manager est détruit');
-        }
-
-        if (this.retryCount > this.config.maxRetryAttempts) {
-            issues.push(`Trop de tentatives: ${this.retryCount}`);
-        }
-
-        if (issues.length > 0) {
-            console.warn('⚠️ Problèmes d\'intégrité DisplayManager:', issues);
-            return false;
-        }
-
-        return true;
     }
 
     /**

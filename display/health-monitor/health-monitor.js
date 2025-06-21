@@ -96,7 +96,6 @@ class HealthMonitor {
         // Observers - pour cleanup proper
         this.observers = {
             performance: null,
-            intersection: null
         };
 
         // Bound methods pour éviter les problèmes de contexte
@@ -1222,15 +1221,6 @@ class HealthMonitor {
             }
             this.observers.performance = null;
         }
-
-        if (this.observers.intersection) {
-            try {
-                this.observers.intersection.disconnect();
-            } catch (e) {
-                console.warn('Erreur lors du cleanup intersection observer:', e);
-            }
-            this.observers.intersection = null;
-        }
     }
 
     /**
@@ -1388,14 +1378,6 @@ class HealthMonitor {
     }
 
     /**
-     * Met à jour la configuration
-     */
-    updateConfig(newConfig) {
-        this.config = { ...this.config, ...newConfig };
-        console.log('⚙️ Configuration HealthMonitor mise à jour');
-    }
-
-    /**
      * Nettoie toutes les ressources
      */
     cleanup() {
@@ -1486,7 +1468,6 @@ class HealthMonitor {
 
         this.observers = {
             performance: null,
-            intersection: null
         };
 
         this.boundMethods = {
@@ -1530,7 +1511,6 @@ class HealthMonitor {
                     getMetrics: () => window.healthMonitor.metrics,
                     forceHealthCheck: () => window.healthMonitor.forceHealthCheck(),
                     forceRecovery: () => window.healthMonitor.forceRecovery(),
-                    updateConfig: (config) => window.healthMonitor.updateConfig(config),
                     restart: () => window.healthMonitor.restart(),
                     cleanup: () => window.healthMonitor.cleanup(),
 

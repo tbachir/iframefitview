@@ -101,7 +101,7 @@
                 console.log(`📺 Display chargé: ${this.display.name} (${this.display.slug})`);
                 return true;
             }
-            
+
             /**
              * Restaure la dernière date de synchronisation
              */
@@ -182,29 +182,7 @@
                         slug: this.display.slug,
                         path: this.display.path
                     } : null,
-                    displayManager: this.displayManager ? this.displayManager.getDisplayInfo() : null,
-                    lastSync: this.getLastSyncInfo()
                 };
-            }
-
-            /**
-             * Récupère les informations de dernière synchronisation
-             */
-            getLastSyncInfo() {
-                try {
-                    const lastSync = localStorage.getItem('hb_sync');
-                    if (lastSync) {
-                        const date = new Date(parseInt(lastSync));
-                        return {
-                            timestamp: parseInt(lastSync),
-                            date: date.toLocaleString(),
-                            timeAgo: this.getTimeAgo(date)
-                        };
-                    }
-                } catch (e) {
-                    console.warn('Erreur lors de la lecture de la dernière sync:', e);
-                }
-                return null;
             }
 
             /**
@@ -427,19 +405,8 @@
             app.init();
         }
 
-        // Exposer l'application pour le debug
         window.HuddleBoardApp = app;
 
-        // Commandes de debug utiles
-        window.debug = {
-            getAppInfo: () => app.getAppInfo(),
-            forceRefresh: () => app.displayManager?.forceRefresh(),
-            getScaleInfo: () => app.displayManager?.scaleHandler?.getScaleInfo(),
-            getRefreshStats: () => app.displayManager?.refreshService?.getStats(),
-            setFillMode: (mode) => app.displayManager?.scaleHandler?.setFillMode(mode),
-        };
-
-        console.log('🛠️ Commandes debug disponibles: window.debug');
     </script>
 </body>
 

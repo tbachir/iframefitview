@@ -429,92 +429,6 @@ class RefreshService {
         });
     }
 
-    /**
-     * Pause le service de refresh
-     */
-    pause() {
-        if (this.isDestroyed) return;
-
-        console.log('⏸️ Service de refresh mis en pause');
-
-        if (this.timer) {
-            clearInterval(this.timer);
-            this.timer = null;
-        }
-
-        this.cancelAllRequests();
-    }
-
-    /**
-     * Reprend le service de refresh
-     */
-    resume() {
-        if (this.isDestroyed) {
-            console.warn('⚠️ RefreshService détruit, impossible de reprendre');
-            return;
-        }
-
-        console.log('▶️ Service de refresh repris');
-
-        if (!this.timer) {
-            this.scheduleNext();
-        }
-    }
-
-    /**
-     * Met à jour l'intervalle de refresh
-     */
-    updateInterval(newInterval) {
-        if (this.isDestroyed) return;
-
-        const oldInterval = this.interval;
-        this.interval = Math.max(newInterval, this.config.minInterval);
-
-        console.log(`⏱️ Intervalle mis à jour: ${oldInterval}ms → ${this.interval}ms`);
-
-        if (this.timer) {
-            this.scheduleNext();
-        }
-    }
-
-    /**
-     * Récupère les statistiques du service
-     */
-    getStats() {
-        return {
-            interval: this.interval,
-            consecutiveErrors: this.consecutiveErrors,
-            retryCount: this.retryCount,
-            isRefreshing: this.isRefreshing,
-            lastHash: this.lastHash,
-            isActive: this.timer !== null,
-            isDestroyed: this.isDestroyed,
-            activeRequests: this.requestQueue.size
-        };
-    }
-
-    /**
-     * Vérifie si le service est actif
-     */
-    isActive() {
-        return this.timer !== null && !this.isDestroyed;
-    }
-
-    /**
-     * Vérifie si une requête est en cours
-     */
-    isBusy() {
-        return this.isRefreshing;
-    }
-
-    /**
-     * Met à jour la configuration
-     */
-    updateConfig(newConfig) {
-        this.config = { ...this.config, ...newConfig };
-        console.log('⚙️ Configuration refresh mise à jour:', newConfig);
-    }
-
     // =========================================================================
     // INTÉGRATION AVEC LE SYSTÈME DE BANNERS (méthodes sécurisées)
     // =========================================================================
@@ -636,35 +550,6 @@ class RefreshService {
         this.boundRetry = null;
     }
 
-    /**
-     * Vérifie l'intégrité du service
-     */
-    checkIntegrity() {
-        const issues = [];
-
-        if (this.isDestroyed) {
-            issues.push('Service marqué comme détruit');
-        }
-
-        if (this.isRefreshing && this.requestQueue.size === 0) {
-            issues.push('État de refresh incohérent - aucune requête active');
-        }
-
-        if (this.timer && this.isDestroyed) {
-            issues.push('Timer actif alors que le service est détruit');
-        }
-
-        if (this.requestQueue.size > 5) {
-            issues.push(`Trop de requêtes en queue: ${this.requestQueue.size}`);
-        }
-
-        if (issues.length > 0) {
-            console.warn('⚠️ Problèmes d\'intégrité RefreshService:', issues);
-            return false;
-        }
-
-        return true;
-    }
 }
 
 // Export pour usage en tant que module
