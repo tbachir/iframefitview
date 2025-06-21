@@ -1,7 +1,7 @@
 /**
  * Health Monitor - Système de surveillance complet pour HuddleBoard
  * Auto-fonctionnel : suffit d'importer le script
- * Version: 2.0
+ * Version: 2.1 - Corrections critiques
  */
 
 // =============================================================================
@@ -54,9 +54,10 @@ class HealthMonitor {
             healthScore: 100,
             status: 'initializing', // initializing, healthy, warning, critical
 
-            // Compteurs
+            // Compteurs séparés par type d'erreur
             refreshCount: 0,
-            errorCount: 0,
+            systemErrorCount: 0,    // Erreurs critiques système
+            networkErrorCount: 0,   // Erreurs réseau (non-critiques)
             recoveryAttempts: 0,
             memoryWarnings: 0,
 
@@ -71,7 +72,7 @@ class HealthMonitor {
             errorHistory: []
         };
 
-        // Timers
+        // Timers - stockage des IDs pour cleanup proper
         this.timers = {
             healthCheck: null,
             memoryCheck: null,
@@ -93,6 +94,19 @@ class HealthMonitor {
             networkErrors: 0,
             crashRecoveries: 0
         };
+
+        // Observers - pour cleanup proper
+        this.observers = {
+            performance: null,
+            intersection: null
+        };
+
+        // Bound methods pour éviter les problèmes de contexte
+        this.boundMethods = {
+            handleError: this.handleGlobalError.bind(this),
+            handleRejection: this.handleUnhandledRejection.bind(this),
+            handleResourceError: this.handleResourceError.bind(this)
+        };
     }
 
     // =========================================================================
@@ -108,13 +122,13 @@ class HealthMonitor {
             return false;
         }
 
-        console.log('🚀 Initialisation HealthMonitor v2.0');
+        console.log('🚀 Initialisation HealthMonitor v2.1');
 
         try {
-            this._setupGlobalErrorHandlers();
-            this._createUI();
-            this._startMonitoring();
-            this._schedulePreventiveReload();
+            this.setupGlobalErrorHandlers();
+            this.createUI();
+            this.startMonitoring();
+            this.schedulePreventiveReload();
 
             this.isInitialized = true;
             this.isActive = true;
@@ -126,6 +140,11 @@ class HealthMonitor {
         } catch (error) {
             console.error('❌ Échec initialisation HealthMonitor:', error);
             this.state.status = 'critical';
+            this.recordError({
+                type: 'initialization',
+                message: 'Échec initialisation HealthMonitor',
+                error: error
+            });
             return false;
         }
     }
@@ -133,40 +152,56 @@ class HealthMonitor {
     /**
      * Configure les gestionnaires d'erreurs globaux
      */
-    _setupGlobalErrorHandlers() {
+    setupGlobalErrorHandlers() {
         // Erreurs JavaScript
-        window.addEventListener('error', (event) => {
-            this._recordError({
-                type: 'javascript',
-                message: event.message,
-                filename: event.filename,
-                lineno: event.lineno,
-                colno: event.colno,
-                error: event.error
-            });
-        });
+        window.addEventListener('error', this.boundMethods.handleError);
 
         // Promesses rejetées
-        window.addEventListener('unhandledrejection', (event) => {
-            this._recordError({
-                type: 'unhandled_promise',
-                message: event.reason?.message || 'Unhandled promise rejection',
-                reason: event.reason
-            });
-        });
+        window.addEventListener('unhandledrejection', this.boundMethods.handleRejection);
 
         // Erreurs de ressources (images, scripts, etc.)
-        window.addEventListener('error', (event) => {
-            if (event.target !== window) {
-                this._recordError({
-                    type: 'resource',
-                    message: `Failed to load resource: ${event.target.src || event.target.href}`,
-                    element: event.target.tagName,
-                    url: event.target.src || event.target.href
-                });
-            }
-        }, true);
+        window.addEventListener('error', this.boundMethods.handleResourceError, true);
     }
+
+    /**
+     * Gestionnaire d'erreurs JavaScript global
+     */
+    handleGlobalError(event) {
+        this.recordError({
+            type: 'javascript',
+            message: event.message || 'Unknown JavaScript error',
+            filename: event.filename,
+            lineno: event.lineno,
+            colno: event.colno,
+            stack: event.error?.stack
+        });
+    }
+
+    /**
+     * Gestionnaire de promesses rejetées
+     */
+    handleUnhandledRejection(event) {
+        this.recordError({
+            type: 'unhandled_promise',
+            message: event.reason?.message || 'Unhandled promise rejection',
+            reason: event.reason
+        });
+    }
+
+    /**
+     * Gestionnaire d'erreurs de ressources
+     */
+    handleResourceError(event) {
+        if (event.target !== window) {
+            this.recordError({
+                type: 'resource',
+                message: `Failed to load resource: ${event.target.src || event.target.href}`,
+                element: event.target.tagName,
+                url: event.target.src || event.target.href
+            });
+        }
+    }
+
     // =========================================================================
     // MONITORING CORE
     // =========================================================================
@@ -174,55 +209,55 @@ class HealthMonitor {
     /**
      * Démarre tous les timers de monitoring
      */
-    _startMonitoring() {
+    startMonitoring() {
         // Vérification santé générale
         this.timers.healthCheck = setInterval(() => {
-            this._performHealthCheck();
+            this.performHealthCheck();
         }, this.config.healthCheckInterval);
 
         // Vérification mémoire spécifique
         this.timers.memoryCheck = setInterval(() => {
-            this._checkMemoryUsage();
+            this.checkMemoryUsage();
         }, this.config.memoryCheckInterval);
 
         // Mise à jour interface
         this.timers.uiUpdate = setInterval(() => {
-            this._updateUI();
+            this.updateUI();
         }, this.config.uiUpdateInterval);
 
         // Premier check immédiat
         setTimeout(() => {
-            this._performHealthCheck();
-            this._checkMemoryUsage();
-            this._updateUI();
+            this.performHealthCheck();
+            this.checkMemoryUsage();
+            this.updateUI();
         }, 1000);
     }
 
     /**
      * Effectue une vérification complète de santé
      */
-    _performHealthCheck() {
+    performHealthCheck() {
         if (!this.isActive) return;
 
         try {
             this.state.uptime = Date.now() - this.state.startTime;
 
             // Vérifier les performances
-            this._checkPerformance();
+            this.checkPerformance();
 
             // Calculer le score de santé
-            this._calculateHealthScore();
+            this.calculateHealthScore();
 
             // Détecter les problèmes critiques
-            this._detectCriticalIssues();
+            this.detectCriticalIssues();
 
             // Auto-récupération si nécessaire
             if (this.config.autoRecover && this.state.status === 'critical') {
-                this._attemptRecovery();
+                this.attemptRecovery();
             }
 
         } catch (error) {
-            this._recordError({
+            this.recordError({
                 type: 'health_check',
                 message: 'Erreur lors de la vérification de santé',
                 error: error
@@ -233,9 +268,9 @@ class HealthMonitor {
     /**
      * Vérifie l'utilisation mémoire
      */
-    async _checkMemoryUsage() {
+    async checkMemoryUsage() {
         try {
-            const memoryInfo = await this._getMemoryInfo();
+            const memoryInfo = await this.getMemoryInfo();
             if (!memoryInfo) return;
 
             this.state.lastMemoryCheck = {
@@ -244,20 +279,20 @@ class HealthMonitor {
             };
 
             // Ajouter à l'historique
-            this._addToHistory('memory', memoryInfo);
+            this.addToHistory('memory', memoryInfo);
 
             // Vérifier les seuils
             if (memoryInfo.usagePercent > this.config.memoryThreshold) {
                 this.state.memoryWarnings++;
-                this._recordError({
+                this.recordError({
                     type: 'memory_warning',
                     message: `Utilisation mémoire élevée: ${memoryInfo.usagePercent.toFixed(1)}%`,
                     data: memoryInfo
                 });
 
                 // Action si trop d'alertes
-                if (this.state.memoryWarnings > this.config.memoryWarningLimit) {
-                    this._triggerMemoryRecovery();
+                if (this.shouldTriggerMemoryRecovery()) {
+                    this.triggerMemoryRecovery();
                 }
             }
 
@@ -267,7 +302,7 @@ class HealthMonitor {
             }
 
         } catch (error) {
-            this._recordError({
+            this.recordError({
                 type: 'memory_check',
                 message: 'Erreur lors de la vérification mémoire',
                 error: error
@@ -276,9 +311,23 @@ class HealthMonitor {
     }
 
     /**
+     * Détermine si une récupération mémoire doit être déclenchée
+     */
+    shouldTriggerMemoryRecovery() {
+        return this.state.memoryWarnings > this.config.memoryWarningLimit;
+    }
+
+    /**
+     * Détermine si le système doit ralentir
+     */
+    shouldSlowDown(consecutiveErrors) {
+        return consecutiveErrors >= this.config.errorThreshold;
+    }
+
+    /**
      * Vérifie les performances générales
      */
-    _checkPerformance() {
+    checkPerformance() {
         try {
             const now = performance.now();
 
@@ -288,7 +337,7 @@ class HealthMonitor {
 
                 if (delay > this.config.performanceThreshold) {
                     this.metrics.slowOperations++;
-                    this._recordError({
+                    this.recordError({
                         type: 'performance',
                         message: `Opération lente détectée: ${delay.toFixed(2)}ms`,
                         delay: delay
@@ -296,7 +345,7 @@ class HealthMonitor {
                 }
 
                 // Ajouter à l'historique
-                this._addToHistory('performance', {
+                this.addToHistory('performance', {
                     timestamp: Date.now(),
                     delay: delay,
                     score: delay < 100 ? 'excellent' : delay < 500 ? 'good' : delay < 1000 ? 'fair' : 'poor'
@@ -306,11 +355,11 @@ class HealthMonitor {
 
             // Vérifier Web Vitals si disponible
             if (this.config.trackPerformanceMetrics && 'PerformanceObserver' in window) {
-                this._trackWebVitals();
+                this.trackWebVitals();
             }
 
         } catch (error) {
-            this._recordError({
+            this.recordError({
                 type: 'performance_check',
                 message: 'Erreur lors de la vérification performance',
                 error: error
@@ -325,69 +374,83 @@ class HealthMonitor {
     /**
      * Récupère les informations mémoire complètes
      */
-    async _getMemoryInfo() {
-        // Essayer l'API complète d'abord
-        if (window.crossOriginIsolated && performance.measureUserAgentSpecificMemory) {
+    async getMemoryInfo() {
+        // Vérifier si l'API complète est disponible
+        if (this.isMemoryAPIAvailable()) {
             try {
                 const memoryInfo = await performance.measureUserAgentSpecificMemory();
-                return this._parseFullMemoryInfo(memoryInfo);
+                return this.parseFullMemoryInfo(memoryInfo);
             } catch (error) {
-                console.warn('⚠️ API mémoire complète échouée, fallback vers JS heap');
+                console.warn('⚠️ API mémoire complète échouée, fallback vers JS heap:', error.message);
             }
         }
 
         // Fallback vers l'API JavaScript
         if (performance.memory) {
-            return this._parseJSMemoryInfo();
+            return this.parseJSMemoryInfo();
         }
 
         return null;
     }
 
     /**
+     * Vérifie si l'API mémoire complète est disponible
+     */
+    isMemoryAPIAvailable() {
+        return window.crossOriginIsolated && 
+               typeof performance.measureUserAgentSpecificMemory === 'function';
+    }
+
+    /**
      * Parse les infos de l'API mémoire complète
      */
-    _parseFullMemoryInfo(memoryInfo) {
+    parseFullMemoryInfo(memoryInfo) {
         const MB = 1024 * 1024;
         let totalBytes = 0;
 
-        memoryInfo.breakdown.forEach(entry => {
-            totalBytes += entry.bytes;
-        });
+        if (memoryInfo.breakdown && Array.isArray(memoryInfo.breakdown)) {
+            memoryInfo.breakdown.forEach(entry => {
+                if (entry && typeof entry.bytes === 'number') {
+                    totalBytes += entry.bytes;
+                }
+            });
+        }
 
         // Estimation de la limite (approximative)
         const estimatedLimit = performance.memory ? performance.memory.jsHeapSizeLimit * 3 : totalBytes * 4;
-        const usagePercent = (totalBytes / estimatedLimit) * 100;
+        const usagePercent = estimatedLimit > 0 ? (totalBytes / estimatedLimit) * 100 : 0;
 
         return {
             api: 'full',
             usedMB: Number((totalBytes / MB).toFixed(1)),
             limitMB: Number((estimatedLimit / MB).toFixed(1)),
             usagePercent: Number(usagePercent.toFixed(2)),
-            breakdown: memoryInfo.breakdown.map(entry => ({
+            breakdown: memoryInfo.breakdown ? memoryInfo.breakdown.map(entry => ({
                 type: entry.attribution?.[0]?.scope || 'unknown',
                 sizeMB: Number((entry.bytes / MB).toFixed(2))
-            }))
+            })) : []
         };
     }
 
     /**
      * Parse les infos de l'API JavaScript
      */
-    _parseJSMemoryInfo() {
+    parseJSMemoryInfo() {
         const MB = 1024 * 1024;
         const memory = performance.memory;
 
-        const used = memory.usedJSHeapSize;
-        const limit = memory.jsHeapSizeLimit;
-        const usagePercent = (used / limit) * 100;
+        if (!memory) return null;
+
+        const used = memory.usedJSHeapSize || 0;
+        const limit = memory.jsHeapSizeLimit || 1;
+        const usagePercent = limit > 0 ? (used / limit) * 100 : 0;
 
         return {
             api: 'js-only',
             usedMB: Number((used / MB).toFixed(1)),
             limitMB: Number((limit / MB).toFixed(1)),
             usagePercent: Number(usagePercent.toFixed(2)),
-            totalMB: Number((memory.totalJSHeapSize / MB).toFixed(1))
+            totalMB: Number(((memory.totalJSHeapSize || 0) / MB).toFixed(1))
         };
     }
 
@@ -396,37 +459,47 @@ class HealthMonitor {
     // =========================================================================
 
     /**
-     * Calcule le score de santé global
+     * Calcule le score de santé global - VERSION AVEC DISTINCTION D'ERREURS
      */
-    _calculateHealthScore() {
+    calculateHealthScore() {
         let score = 100;
 
-        // Pénalités basées sur les problèmes
-        score -= this.state.errorCount * 2;
+        // Pénalités basées sur les erreurs SYSTÈME uniquement
+        score -= this.state.systemErrorCount * 5;  // Plus lourd pour erreurs système
         score -= this.state.memoryWarnings * 5;
         score -= this.metrics.slowOperations * 3;
-        score -= this.metrics.networkErrors * 1;
+
+        // Pénalités légères pour erreurs réseau (n'empêchent pas le fonctionnement)
+        score -= Math.min(this.state.networkErrorCount * 0.5, 10); // Max 10 points pour réseau
 
         // Bonus pour la stabilité
         const uptimeHours = this.state.uptime / (1000 * 60 * 60);
-        if (uptimeHours > 1 && this.state.errorCount === 0) {
+        if (uptimeHours > 1 && this.state.systemErrorCount === 0) {
             score += Math.min(uptimeHours * 0.5, 10);
         }
 
         this.state.healthScore = Math.max(0, Math.min(100, score));
 
-        // Déterminer le statut
-        if (score >= 90) this.state.status = 'healthy';
-        else if (score >= 70) this.state.status = 'warning';
-        else this.state.status = 'critical';
+        // Déterminer le statut SEULEMENT basé sur les erreurs système
+        if (score >= 90) {
+            this.state.status = 'healthy';
+        } else if (score >= 70) {
+            this.state.status = 'warning';
+        } else if (this.state.systemErrorCount >= this.config.errorThreshold) {
+            // CRITIQUE seulement si erreurs système
+            this.state.status = 'critical';
+        } else {
+            // Même avec beaucoup d'erreurs réseau, max "warning"
+            this.state.status = 'warning';
+        }
     }
 
     /**
-     * Détecte les problèmes critiques
+     * Détecte les problèmes critiques - VERSION SANS ERREURS RÉSEAU
      */
-    _detectCriticalIssues() {
-        // Trop d'erreurs consécutives
-        if (this.state.errorCount >= this.config.errorThreshold) {
+    detectCriticalIssues() {
+        // Trop d'erreurs système consécutives (pas réseau)
+        if (this.state.systemErrorCount >= this.config.errorThreshold) {
             this.state.status = 'critical';
         }
 
@@ -439,12 +512,14 @@ class HealthMonitor {
         if (this.metrics.slowOperations > 10) {
             this.state.status = 'critical';
         }
+
+        // Note: Les erreurs réseau n'entraînent JAMAIS un statut critique
     }
 
     /**
      * Tente une récupération automatique
      */
-    _attemptRecovery() {
+    attemptRecovery() {
         if (this.state.recoveryAttempts >= this.config.maxRecoveryAttempts) {
             console.error('❌ Nombre maximum de tentatives de récupération atteint');
             return;
@@ -456,12 +531,13 @@ class HealthMonitor {
         setTimeout(() => {
             try {
                 // Nettoyer les ressources
-                this._cleanupResources();
+                this.cleanupResources();
 
-                // Réinitialiser les compteurs
-                this.state.errorCount = Math.floor(this.state.errorCount / 2);
+                // Réinitialiser les compteurs d'erreurs système (pas réseau)
+                this.state.systemErrorCount = Math.floor(this.state.systemErrorCount / 2);
                 this.state.memoryWarnings = 0;
                 this.metrics.slowOperations = 0;
+                // Note: On garde networkErrorCount pour info, mais ne l'impacte pas
 
                 // Recharger la page si critique
                 if (this.state.status === 'critical' && this.state.recoveryAttempts >= 2) {
@@ -472,6 +548,11 @@ class HealthMonitor {
 
             } catch (error) {
                 console.error('❌ Échec de la récupération:', error);
+                this.recordError({
+                    type: 'recovery_failed',
+                    message: 'Échec de la récupération automatique',
+                    error: error
+                });
             }
         }, this.config.recoveryDelay);
     }
@@ -479,7 +560,7 @@ class HealthMonitor {
     /**
      * Déclenche une récupération mémoire
      */
-    _triggerMemoryRecovery() {
+    triggerMemoryRecovery() {
         console.log('🧹 Tentative de récupération mémoire');
 
         try {
@@ -489,10 +570,10 @@ class HealthMonitor {
             }
 
             // Nettoyer les caches
-            this._cleanupResources();
+            this.cleanupResources();
 
             // Réduire l'historique
-            this._trimHistory();
+            this.trimHistory();
 
             // Recharger si toujours critique
             setTimeout(() => {
@@ -504,6 +585,11 @@ class HealthMonitor {
 
         } catch (error) {
             console.error('❌ Échec récupération mémoire:', error);
+            this.recordError({
+                type: 'memory_recovery_failed',
+                message: 'Échec récupération mémoire',
+                error: error
+            });
         }
     }
 
@@ -514,9 +600,9 @@ class HealthMonitor {
     /**
      * Crée l'interface utilisateur
      */
-    _createUI() {
+    createUI() {
         // Charger les styles CSS
-        this._loadCSS();
+        this.loadCSS();
 
         // Créer le bouton flottant
         this.ui.button = document.createElement('div');
@@ -530,25 +616,25 @@ class HealthMonitor {
         // Créer le panneau détaillé
         this.ui.panel = document.createElement('div');
         this.ui.panel.id = 'health-monitor-panel';
-        this.ui.panel.innerHTML = this._createPanelHTML();
+        this.ui.panel.innerHTML = this.createPanelHTML();
 
         // Events
-        this.ui.button.addEventListener('click', () => this._toggleDetailedPanel());
+        this.ui.button.addEventListener('click', () => this.toggleDetailedPanel());
 
-        this.ui.overlay.addEventListener('click', () => this._hideDetailedPanel());
+        this.ui.overlay.addEventListener('click', () => this.hideDetailedPanel());
 
         // Events du panneau
         const closeBtn = this.ui.panel.querySelector('.health-panel-close');
-        closeBtn?.addEventListener('click', () => this._hideDetailedPanel());
+        closeBtn?.addEventListener('click', () => this.hideDetailedPanel());
 
         const refreshBtn = this.ui.panel.querySelector('#health-refresh-btn');
-        refreshBtn?.addEventListener('click', () => this._forceRefresh());
+        refreshBtn?.addEventListener('click', () => this.forceRefresh());
 
         const recoveryBtn = this.ui.panel.querySelector('#health-recovery-btn');
-        recoveryBtn?.addEventListener('click', () => this._attemptRecovery());
+        recoveryBtn?.addEventListener('click', () => this.attemptRecovery());
 
         const reloadBtn = this.ui.panel.querySelector('#health-reload-btn');
-        reloadBtn?.addEventListener('click', () => this._forceReload());
+        reloadBtn?.addEventListener('click', () => this.forceReload());
 
         // Ajouter au DOM
         document.body.appendChild(this.ui.button);
@@ -556,13 +642,13 @@ class HealthMonitor {
         document.body.appendChild(this.ui.panel);
 
         // Mettre à jour l'apparence initiale
-        this._updateButtonAppearance();
+        this.updateButtonAppearance();
     }
 
     /**
      * Charge les styles CSS
      */
-    _loadCSS() {
+    loadCSS() {
         // Vérifier si les styles sont déjà chargés
         if (document.getElementById('health-monitor-styles')) {
             return;
@@ -590,9 +676,9 @@ class HealthMonitor {
     }
 
     /**
-     * Crée le HTML du panneau détaillé
+     * Crée le HTML du panneau détaillé - VERSION SÉCURISÉE
      */
-    _createPanelHTML() {
+    createPanelHTML() {
         return `
             <div class="health-panel-header">
                 <h3 class="health-panel-title">🏥 System Health Monitor</h3>
@@ -642,7 +728,7 @@ class HealthMonitor {
     /**
      * Met à jour l'apparence du bouton selon le statut
      */
-    _updateButtonAppearance() {
+    updateButtonAppearance() {
         if (!this.ui.button) return;
 
         // Supprimer toutes les classes de statut
@@ -664,19 +750,19 @@ class HealthMonitor {
     /**
      * Affiche/cache le panneau détaillé
      */
-    _toggleDetailedPanel() {
+    toggleDetailedPanel() {
         if (this.ui.panel.classList.contains('visible')) {
-            this._hideDetailedPanel();
+            this.hideDetailedPanel();
         } else {
-            this._showDetailedPanel();
+            this.showDetailedPanel();
         }
     }
 
     /**
      * Affiche le panneau détaillé
      */
-    _showDetailedPanel() {
-        this._updatePanelContent();
+    showDetailedPanel() {
+        this.updatePanelContent();
         this.ui.overlay.classList.add('visible');
         this.ui.panel.classList.add('visible');
     }
@@ -684,7 +770,7 @@ class HealthMonitor {
     /**
      * Cache le panneau détaillé
      */
-    _hideDetailedPanel() {
+    hideDetailedPanel() {
         this.ui.overlay.classList.remove('visible');
         this.ui.panel.classList.remove('visible');
     }
@@ -692,103 +778,103 @@ class HealthMonitor {
     /**
      * Met à jour le contenu du panneau détaillé
      */
-    _updatePanelContent() {
-        this._updateMetricsGrid();
-        this._updateSystemInfo();
-        this._updateMemoryInfo();
-        this._updateActivityLog();
+    updatePanelContent() {
+        this.updateMetricsGrid();
+        this.updateSystemInfo();
+        this.updateMemoryInfo();
+        this.updateActivityLog();
     }
 
     /**
-     * Met à jour la grille des métriques
+     * Met à jour la grille des métriques - VERSION SÉCURISÉE
      */
-    _updateMetricsGrid() {
+    updateMetricsGrid() {
         const container = this.ui.panel.querySelector('#health-metrics-grid');
         if (!container) return;
 
-        const uptime = this._formatDuration(this.state.uptime);
+        const uptime = this.formatDuration(this.state.uptime);
         const memInfo = this.state.lastMemoryCheck?.data;
         const memUsage = memInfo ? `${memInfo.usagePercent}%` : 'N/A';
-        const performanceStatus = this._getPerformanceStatus();
+        const performanceStatus = this.getPerformanceStatus();
 
         const metrics = [
             {
-                value: `${this.state.healthScore.toFixed(1)}%`,
+                value: this.escapeHtml(`${this.state.healthScore.toFixed(1)}%`),
                 label: 'Health Score',
                 status: this.state.status,
-                subtitle: this.state.status.toUpperCase()
+                subtitle: this.escapeHtml(this.state.status.toUpperCase())
             },
             {
-                value: memUsage,
+                value: this.escapeHtml(memUsage),
                 label: 'Memory Usage',
                 status: memInfo?.usagePercent > 80 ? 'critical' : memInfo?.usagePercent > 60 ? 'warning' : 'healthy',
-                subtitle: memInfo ? `${memInfo.usedMB}MB / ${memInfo.limitMB}MB` : 'N/A'
+                subtitle: memInfo ? this.escapeHtml(`${memInfo.usedMB}MB / ${memInfo.limitMB}MB`) : 'N/A'
             },
             {
-                value: uptime,
+                value: this.escapeHtml(uptime),
                 label: 'Uptime',
                 status: 'healthy',
-                subtitle: new Date(this.state.startTime).toLocaleTimeString()
+                subtitle: this.escapeHtml(new Date(this.state.startTime).toLocaleTimeString())
             },
             {
-                value: this.state.refreshCount.toString(),
+                value: this.escapeHtml(this.state.refreshCount.toString()),
                 label: 'Refreshes',
-                status: this.state.errorCount > 0 ? 'warning' : 'healthy',
-                subtitle: `${this.state.errorCount} errors`
+                status: this.state.systemErrorCount > 0 ? 'warning' : 'healthy',
+                subtitle: this.escapeHtml(`${this.state.systemErrorCount} sys / ${this.state.networkErrorCount} net`)
             },
             {
-                value: performanceStatus,
+                value: this.escapeHtml(performanceStatus),
                 label: 'Performance',
                 status: performanceStatus === 'Poor' ? 'critical' : performanceStatus === 'Fair' ? 'warning' : 'healthy',
-                subtitle: `${this.metrics.slowOperations} slow ops`
+                subtitle: this.escapeHtml(`${this.metrics.slowOperations} slow ops`)
             },
             {
-                value: this.state.recoveryAttempts.toString(),
+                value: this.escapeHtml(this.state.recoveryAttempts.toString()),
                 label: 'Recoveries',
                 status: this.state.recoveryAttempts > 2 ? 'warning' : 'healthy',
-                subtitle: `${this.metrics.crashRecoveries} crashes`
+                subtitle: this.escapeHtml(`${this.metrics.crashRecoveries} crashes`)
             }
         ];
 
         container.innerHTML = metrics.map(metric => `
-            <div class="health-metric-card ${metric.status}">
+            <div class="health-metric-card ${this.escapeHtml(metric.status)}">
                 <div class="health-metric-value">${metric.value}</div>
-                <div class="health-metric-label">${metric.label}</div>
+                <div class="health-metric-label">${this.escapeHtml(metric.label)}</div>
                 <div class="health-metric-subtitle">${metric.subtitle}</div>
             </div>
         `).join('');
     }
 
     /**
-     * Met à jour les informations système
+     * Met à jour les informations système - VERSION SÉCURISÉE
      */
-    _updateSystemInfo() {
+    updateSystemInfo() {
         const container = this.ui.panel.querySelector('#health-system-info');
         if (!container) return;
 
         const systemInfo = [
             { label: 'Status', value: this.state.status.toUpperCase() },
             { label: 'Start Time', value: new Date(this.state.startTime).toLocaleString() },
+            { label: 'System Errors', value: this.state.systemErrorCount.toString() },
+            { label: 'Network Errors', value: this.state.networkErrorCount.toString() },
             { label: 'User Agent', value: navigator.userAgent.split(' ')[0] },
             { label: 'Viewport', value: `${window.innerWidth}×${window.innerHeight}` },
             { label: 'Cross-Origin Isolated', value: window.crossOriginIsolated ? 'Yes' : 'No' },
-            { label: 'Memory API', value: this.state.lastMemoryCheck?.data?.api || 'unknown' },
-            { label: 'Network Type', value: navigator.connection?.effectiveType || 'unknown' },
-            { label: 'CPU Cores', value: navigator.hardwareConcurrency || 'unknown' }
+            { label: 'Memory API', value: this.state.lastMemoryCheck?.data?.api || 'unknown' }
         ];
 
         container.innerHTML = systemInfo.map(info => `
             <div class="health-info-item">
-                <span class="health-info-label">${info.label}:</span>
-                <span class="health-info-value">${info.value}</span>
+                <span class="health-info-label">${this.escapeHtml(info.label)}:</span>
+                <span class="health-info-value">${this.escapeHtml(String(info.value))}</span>
             </div>
         `).join('');
     }
 
     /**
-     * Met à jour les informations mémoire
+     * Met à jour les informations mémoire - VERSION SÉCURISÉE
      */
-    _updateMemoryInfo() {
+    updateMemoryInfo() {
         const container = this.ui.panel.querySelector('#health-memory-info');
         if (!container) return;
 
@@ -813,7 +899,7 @@ class HealthMonitor {
             memInfo.breakdown.forEach((item, index) => {
                 if (index < 4) { // Limiter à 4 entrées pour l'affichage
                     memoryDetails.push({
-                        label: `${item.type}`,
+                        label: item.type,
                         value: `${item.sizeMB} MB`
                     });
                 }
@@ -822,16 +908,16 @@ class HealthMonitor {
 
         container.innerHTML = memoryDetails.map(info => `
             <div class="health-info-item">
-                <span class="health-info-label">${info.label}:</span>
-                <span class="health-info-value">${info.value}</span>
+                <span class="health-info-label">${this.escapeHtml(info.label)}:</span>
+                <span class="health-info-value">${this.escapeHtml(info.value)}</span>
             </div>
         `).join('');
     }
 
     /**
-     * Met à jour le journal d'activité
+     * Met à jour le journal d'activité - VERSION SÉCURISÉE
      */
-    _updateActivityLog() {
+    updateActivityLog() {
         const container = this.ui.panel.querySelector('#health-activity-log');
         if (!container) return;
 
@@ -873,7 +959,16 @@ class HealthMonitor {
             allEvents.push({
                 timestamp: Date.now(),
                 type: 'info',
-                message: `System recovery attempts: ${this.state.recoveryAttempts}`
+                message: `Recovery attempts: ${this.state.recoveryAttempts}`
+            });
+        }
+
+        // Ajouter un résumé des erreurs si pertinent
+        if (this.state.networkErrorCount > 0) {
+            allEvents.push({
+                timestamp: Date.now(),
+                type: 'info',
+                message: `Network errors: ${this.state.networkErrorCount} (non-critical)`
             });
         }
 
@@ -889,9 +984,9 @@ class HealthMonitor {
         }
 
         container.innerHTML = recentEvents.map(event => `
-            <div class="health-history-entry ${event.type}">
-                <span class="health-history-time">${new Date(event.timestamp).toLocaleTimeString()}</span>
-                <span class="health-history-message">${event.message}</span>
+            <div class="health-history-entry ${this.escapeHtml(event.type)}">
+                <span class="health-history-time">${this.escapeHtml(new Date(event.timestamp).toLocaleTimeString())}</span>
+                <span class="health-history-message">${this.escapeHtml(event.message)}</span>
             </div>
         `).join('');
     }
@@ -899,23 +994,23 @@ class HealthMonitor {
     /**
      * Met à jour l'interface utilisateur
      */
-    _updateUI() {
-        this._updateButtonAppearance();
+    updateUI() {
+        this.updateButtonAppearance();
 
         // Si le panneau est ouvert, mettre à jour son contenu
         if (this.ui.panel && this.ui.panel.classList.contains('visible')) {
-            this._updatePanelContent();
+            this.updatePanelContent();
         }
     }
 
     /**
      * Actions du panneau
      */
-    _forceRefresh() {
+    forceRefresh() {
         console.log('🔄 Force refresh triggered by user');
-        this._performHealthCheck();
-        this._checkMemoryUsage();
-        this._updatePanelContent();
+        this.performHealthCheck();
+        this.checkMemoryUsage();
+        this.updatePanelContent();
 
         // Notification visuelle
         const btn = this.ui.panel.querySelector('#health-refresh-btn');
@@ -930,7 +1025,7 @@ class HealthMonitor {
         }
     }
 
-    _forceReload() {
+    forceReload() {
         if (confirm('Are you sure you want to reload the page? All unsaved data will be lost.')) {
             console.log('⚡ Force reload triggered by user');
             window.location.reload();
@@ -938,25 +1033,101 @@ class HealthMonitor {
     }
 
     // =========================================================================
-    // UTILITAIRES
+    // UTILITAIRES SÉCURISÉS
     // =========================================================================
 
     /**
-     * Enregistre une erreur
+     * Échappe les caractères HTML pour éviter les XSS
      */
-    _recordError(errorInfo) {
-        this.state.errorCount++;
-        this.state.lastError = {
-            ...errorInfo,
+    escapeHtml(text) {
+        if (typeof text !== 'string') {
+            return String(text);
+        }
+        
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+            '/': '&#x2F;'
+        };
+        
+        return text.replace(/[&<>"'\/]/g, (s) => map[s]);
+    }
+
+    /**
+     * Détermine si une erreur est de type système (critique)
+     */
+    isSystemError(type) {
+        const systemErrorTypes = [
+            'javascript',
+            'unhandled_promise', 
+            'resource',
+            'health_check',
+            'memory_check',
+            'performance_check',
+            'memory_warning',
+            'performance',
+            'scale_handler',
+            'display_manager',
+            'initialization'
+        ];
+        return systemErrorTypes.includes(type);
+    }
+
+    /**
+     * Détermine si une erreur est de type réseau (non-critique)
+     */
+    isNetworkError(type) {
+        const networkErrorTypes = [
+            'refresh_service',
+            'fetch_error',
+            'network_timeout',
+            'iframe_load_timeout',
+            'iframe_error'
+        ];
+        return networkErrorTypes.includes(type);
+    }
+
+    /**
+     * Enregistre une erreur - VERSION AVEC DISTINCTION DES TYPES
+     */
+    recordError(errorInfo) {
+        // Nettoyer l'erreur pour éviter les références circulaires
+        const cleanError = {
+            type: errorInfo.type,
+            message: errorInfo.message,
             timestamp: Date.now()
         };
 
+        // Ajouter des détails sécurisés si disponibles
+        if (errorInfo.filename) cleanError.filename = errorInfo.filename;
+        if (errorInfo.lineno) cleanError.lineno = errorInfo.lineno;
+        if (errorInfo.colno) cleanError.colno = errorInfo.colno;
+        if (errorInfo.delay) cleanError.delay = errorInfo.delay;
+
+        this.state.lastError = cleanError;
+
+        // Comptabiliser selon le type d'erreur
+        if (this.isSystemError(errorInfo.type)) {
+            this.state.systemErrorCount++;
+            console.error('🔴 Erreur système:', cleanError);
+        } else if (this.isNetworkError(errorInfo.type)) {
+            this.state.networkErrorCount++;
+            console.warn('🟠 Erreur réseau:', cleanError);
+        } else {
+            // Type d'erreur non classé - traiter comme système par sécurité
+            this.state.systemErrorCount++;
+            console.error('⚫ Erreur non classée (traitée comme système):', cleanError);
+        }
+
         // Ajouter à l'historique
-        this._addToHistory('error', errorInfo);
+        this.addToHistory('error', cleanError);
 
         // Logger selon la configuration
         if (this.config.logLevel === 'error' || this.config.logLevel === 'warn') {
-            console.error('❌ HealthMonitor:', errorInfo);
+            console.error('❌ HealthMonitor:', cleanError);
         }
     }
 
@@ -970,14 +1141,16 @@ class HealthMonitor {
     /**
      * Ajoute une entrée à l'historique
      */
-    _addToHistory(type, data) {
+    addToHistory(type, data) {
         const entry = {
             timestamp: Date.now(),
             data: data
         };
 
-        const history = this.state[`${type}History`];
-        if (history) {
+        const historyKey = `${type}History`;
+        const history = this.state[historyKey];
+        
+        if (history && Array.isArray(history)) {
             history.push(entry);
             if (history.length > 50) {
                 history.shift();
@@ -988,9 +1161,9 @@ class HealthMonitor {
     /**
      * Réduit la taille de l'historique
      */
-    _trimHistory() {
+    trimHistory() {
         ['memoryHistory', 'performanceHistory', 'errorHistory'].forEach(key => {
-            if (this.state[key].length > 20) {
+            if (this.state[key] && this.state[key].length > 20) {
                 this.state[key] = this.state[key].slice(-20);
             }
         });
@@ -999,20 +1172,46 @@ class HealthMonitor {
     /**
      * Nettoie les ressources
      */
-    _cleanupResources() {
+    cleanupResources() {
         // Vider les historiques anciens
-        this._trimHistory();
+        this.trimHistory();
 
         // Nettoyer les références potentiellement circulaires
         if (this.state.lastError?.error) {
             delete this.state.lastError.error;
+        }
+
+        // Nettoyer les observers
+        this.cleanupObservers();
+    }
+
+    /**
+     * Nettoie les observers de performance
+     */
+    cleanupObservers() {
+        if (this.observers.performance) {
+            try {
+                this.observers.performance.disconnect();
+            } catch (e) {
+                console.warn('Erreur lors du cleanup observer:', e);
+            }
+            this.observers.performance = null;
+        }
+
+        if (this.observers.intersection) {
+            try {
+                this.observers.intersection.disconnect();
+            } catch (e) {
+                console.warn('Erreur lors du cleanup intersection observer:', e);
+            }
+            this.observers.intersection = null;
         }
     }
 
     /**
      * Formate une durée en texte lisible
      */
-    _formatDuration(ms) {
+    formatDuration(ms) {
         const seconds = Math.floor(ms / 1000);
         const minutes = Math.floor(seconds / 60);
         const hours = Math.floor(minutes / 60);
@@ -1027,7 +1226,7 @@ class HealthMonitor {
     /**
      * Retourne le statut de performance
      */
-    _getPerformanceStatus() {
+    getPerformanceStatus() {
         if (this.metrics.slowOperations === 0) return 'Excellent';
         if (this.metrics.slowOperations < 3) return 'Good';
         if (this.metrics.slowOperations < 10) return 'Fair';
@@ -1037,7 +1236,7 @@ class HealthMonitor {
     /**
      * Programme le rechargement préventif
      */
-    _schedulePreventiveReload() {
+    schedulePreventiveReload() {
         this.timers.preventiveReload = setTimeout(() => {
             console.log('🔄 Rechargement préventif programmé');
             window.location.reload();
@@ -1047,18 +1246,24 @@ class HealthMonitor {
     /**
      * Suit les Web Vitals
      */
-    _trackWebVitals() {
+    trackWebVitals() {
         try {
-            const observer = new PerformanceObserver((list) => {
+            if (this.observers.performance) {
+                return; // Déjà configuré
+            }
+
+            this.observers.performance = new PerformanceObserver((list) => {
                 for (const entry of list.getEntries()) {
                     if (entry.entryType === 'measure' && entry.duration > this.config.performanceThreshold) {
                         this.metrics.slowOperations++;
                     }
                 }
             });
-            observer.observe({ entryTypes: ['measure'] });
+            
+            this.observers.performance.observe({ entryTypes: ['measure'] });
         } catch (error) {
             // Silently fail if not supported
+            console.warn('Web Vitals tracking non supporté:', error);
         }
     }
 
@@ -1089,8 +1294,8 @@ class HealthMonitor {
      * Force une vérification de santé
      */
     forceHealthCheck() {
-        this._performHealthCheck();
-        this._checkMemoryUsage();
+        this.performHealthCheck();
+        this.checkMemoryUsage();
     }
 
     /**
@@ -1098,7 +1303,7 @@ class HealthMonitor {
      */
     forceRecovery() {
         console.log('🔧 Récupération forcée par l\'utilisateur');
-        this._attemptRecovery();
+        this.attemptRecovery();
     }
 
     /**
@@ -1119,8 +1324,16 @@ class HealthMonitor {
 
         // Arrêter tous les timers
         Object.values(this.timers).forEach(timer => {
-            if (timer) clearInterval(timer);
+            if (timer) clearTimeout(timer);
         });
+
+        // Nettoyer les event listeners
+        window.removeEventListener('error', this.boundMethods.handleError);
+        window.removeEventListener('unhandledrejection', this.boundMethods.handleRejection);
+        window.removeEventListener('error', this.boundMethods.handleResourceError, true);
+
+        // Nettoyer les observers
+        this.cleanupObservers();
 
         // Supprimer l'UI
         if (this.ui.button) this.ui.button.remove();
@@ -1136,6 +1349,8 @@ class HealthMonitor {
         this.metrics = null;
         this.ui = null;
         this.timers = null;
+        this.observers = null;
+        this.boundMethods = null;
     }
 
     /**
@@ -1156,7 +1371,8 @@ class HealthMonitor {
             healthScore: 100,
             status: 'initializing',
             refreshCount: 0,
-            errorCount: 0,
+            systemErrorCount: 0,
+            networkErrorCount: 0,
             recoveryAttempts: 0,
             memoryWarnings: 0,
             lastError: null,
@@ -1187,6 +1403,17 @@ class HealthMonitor {
             panel: null,
         };
 
+        this.observers = {
+            performance: null,
+            intersection: null
+        };
+
+        this.boundMethods = {
+            handleError: this.handleGlobalError.bind(this),
+            handleRejection: this.handleUnhandledRejection.bind(this),
+            handleResourceError: this.handleResourceError.bind(this)
+        };
+
         // Redémarrer
         setTimeout(() => this.init(), 100);
     }
@@ -1214,7 +1441,7 @@ class HealthMonitor {
             if (success) {
                 console.log('✅ HealthMonitor auto-initialisé');
 
-                // Exposer des méthodes utiles pour le debug
+                // Exposer des méthodes utiles pour le debug (VERSION SÉCURISÉE)
                 window.debug = window.debug || {};
                 window.debug.health = {
                     getStats: () => window.healthMonitor.getStats(),
@@ -1227,11 +1454,11 @@ class HealthMonitor {
                     cleanup: () => window.healthMonitor.cleanup(),
 
                     // Helpers pour ThinManager/Shadow
-                    showPanel: () => window.healthMonitor._showDetailedPanel(),
-                    hidePanel: () => window.healthMonitor._hideDetailedPanel(),
+                    showPanel: () => window.healthMonitor.showDetailedPanel(),
+                    hidePanel: () => window.healthMonitor.hideDetailedPanel(),
                     isHealthy: () => window.healthMonitor.state.status === 'healthy',
                     getMemoryUsage: () => window.healthMonitor.state.lastMemoryCheck?.data?.usagePercent || 0,
-                    getUptime: () => window.healthMonitor._formatDuration(window.healthMonitor.state.uptime)
+                    getUptime: () => window.healthMonitor.formatDuration(window.healthMonitor.state.uptime)
                 };
 
                 console.log('🛠️ Debug: window.debug.health contient les méthodes utiles');

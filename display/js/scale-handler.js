@@ -1,6 +1,7 @@
 /**
  * Scale Handler - Gestionnaire de mise à l'échelle universel
  * Adapte automatiquement la taille du contenu iframe à toutes les résolutions
+ * Version 2.1 - Corrections memory leaks et optimisations
  */
 class ScaleHandler {
     constructor(iframe) {
@@ -8,10 +9,16 @@ class ScaleHandler {
         this.contentW = window.innerWidth;
         this.contentH = window.innerHeight;
         this.resizeTimeout = null;
-        this.loadHandler = null;
-        this.resizeHandler = null;
+        this.loadTimeout = null;
         this.isReady = false;
-        this.iframeDoc = null; // Cache iframe document
+        this.isDestroyed = false;
+        
+        // Cache sécurisé pour le document iframe
+        this.iframeDocCache = {
+            doc: null,
+            lastAccess: 0,
+            maxAge: 5000 // 5 secondes de cache
+        };
 
         this.config = {
             loadDelay: 150,              // Délai avant mesure du contenu
@@ -22,6 +29,10 @@ class ScaleHandler {
             fillMode: 'contain'          // 'contain', 'cover', 'fill', 'fit-width', 'fit-height'
         };
 
+        // Bind methods pour éviter les problèmes de contexte
+        this.boundOnLoad = this.onLoad.bind(this);
+        this.boundOnResize = this.onResize.bind(this);
+
         this.init();
     }
 
@@ -29,6 +40,11 @@ class ScaleHandler {
      * Initialise les gestionnaires d'événements
      */
     init() {
+        if (this.isDestroyed) {
+            console.warn('⚠️ ScaleHandler détruit, impossible d\'initialiser');
+            return;
+        }
+
         this.setupLoadHandler();
         this.setupResizeHandler();
     }
@@ -37,41 +53,71 @@ class ScaleHandler {
      * Configure le gestionnaire de chargement
      */
     setupLoadHandler() {
-        this.loadHandler = () => {
-            setTimeout(() => this.onLoad(), this.config.loadDelay);
-        };
+        if (!this.iframe || this.isDestroyed) return;
 
-        this.iframe.addEventListener('load', this.loadHandler);
+        this.iframe.addEventListener('load', this.boundOnLoad);
     }
 
     /**
      * Configure le gestionnaire de redimensionnement
      */
     setupResizeHandler() {
-        this.resizeHandler = () => {
-            clearTimeout(this.resizeTimeout);
-            this.resizeTimeout = setTimeout(() => {
-                if (this.isReady) {
-                    this.applyScale();
-                }
-            }, this.config.resizeDebounce);
-        };
+        if (this.isDestroyed) return;
 
-        window.addEventListener('resize', this.resizeHandler);
+        window.addEventListener('resize', this.boundOnResize);
+    }
+
+    /**
+     * Gestionnaire de chargement de l'iframe (version bound)
+     */
+    onLoad() {
+        if (this.isDestroyed) return;
+
+        // Nettoyer le timeout de chargement précédent
+        if (this.loadTimeout) {
+            clearTimeout(this.loadTimeout);
+            this.loadTimeout = null;
+        }
+
+        this.loadTimeout = setTimeout(() => {
+            if (!this.isDestroyed) {
+                this.handleLoad();
+            }
+        }, this.config.loadDelay);
+    }
+
+    /**
+     * Gestionnaire de resize (version bound)
+     */
+    onResize() {
+        if (this.isDestroyed) return;
+
+        // Nettoyer le timeout de resize précédent
+        if (this.resizeTimeout) {
+            clearTimeout(this.resizeTimeout);
+            this.resizeTimeout = null;
+        }
+
+        this.resizeTimeout = setTimeout(() => {
+            if (this.isReady && !this.isDestroyed) {
+                this.applyScale();
+            }
+        }, this.config.resizeDebounce);
     }
 
     /**
      * Gestionnaire de chargement de l'iframe
      */
-    onLoad() {
+    handleLoad() {
+        if (this.isDestroyed) return;
+
         try {
-            const doc = this.iframe.contentDocument;
+            const doc = this.getIframeDocument();
             if (!doc) {
                 console.warn('⚠️ Impossible d\'accéder au document de l\'iframe');
                 return;
             }
 
-            this.iframeDoc = doc;
             this.injectStyles(doc);
             this.measureContent(doc);
             this.applyScale();
@@ -80,88 +126,144 @@ class ScaleHandler {
             console.log(`📏 Contenu mesuré: ${this.contentW}×${this.contentH}px`);
 
         } catch (e) {
-            console.error('❌ Erreur dans onLoad:', e);
-            if (window.healthMonitor) {
-                window.healthMonitor._recordError(e);
+            console.error('❌ Erreur dans handleLoad:', e);
+            this.recordError(e);
+        } finally {
+            // Nettoyer le timeout
+            if (this.loadTimeout) {
+                clearTimeout(this.loadTimeout);
+                this.loadTimeout = null;
             }
         }
+    }
+
+    /**
+     * Récupère le document de l'iframe de façon sécurisée avec cache
+     */
+    getIframeDocument() {
+        if (this.isDestroyed || !this.iframe) return null;
+
+        const now = Date.now();
+        
+        // Utiliser le cache si disponible et récent
+        if (this.iframeDocCache.doc && 
+            (now - this.iframeDocCache.lastAccess) < this.iframeDocCache.maxAge) {
+            return this.iframeDocCache.doc;
+        }
+
+        try {
+            const doc = this.iframe.contentDocument;
+            if (doc) {
+                // Mettre à jour le cache
+                this.iframeDocCache.doc = doc;
+                this.iframeDocCache.lastAccess = now;
+            }
+            return doc;
+        } catch (error) {
+            console.warn('Impossible d\'accéder au document iframe:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Invalide le cache du document iframe
+     */
+    invalidateDocumentCache() {
+        this.iframeDocCache.doc = null;
+        this.iframeDocCache.lastAccess = 0;
     }
 
     /**
      * Injecte les styles nécessaires dans l'iframe
      */
     injectStyles(doc) {
+        if (!doc || this.isDestroyed) return;
+
         // Vérifier si les styles sont déjà injectés
         if (doc.getElementById('huddleboard-scale-styles')) {
             return;
         }
 
-        const style = doc.createElement('style');
-        style.id = 'huddleboard-scale-styles';
-        style.textContent = `
-            html, body { 
-                overflow: hidden !important; 
-                margin: 0 !important; 
-                padding: 0 !important; 
-                box-sizing: border-box !important;
-                width: 100% !important;
-                height: 100% !important;
-            }
-            
-            * { 
-                box-sizing: border-box !important; 
-            }
-            
-            /* Optimisations de rendu */
-            body {
-                transform: translateZ(0);
-                backface-visibility: hidden;
-            }
-        `;
+        try {
+            const style = doc.createElement('style');
+            style.id = 'huddleboard-scale-styles';
+            style.textContent = `
+                html, body { 
+                    overflow: hidden !important; 
+                    margin: 0 !important; 
+                    padding: 0 !important; 
+                    box-sizing: border-box !important;
+                    width: 100% !important;
+                    height: 100% !important;
+                }
+                
+                * { 
+                    box-sizing: border-box !important; 
+                }
+                
+                /* Optimisations de rendu */
+                body {
+                    transform: translateZ(0);
+                    backface-visibility: hidden;
+                }
+            `;
 
-        doc.head.appendChild(style);
+            doc.head.appendChild(style);
+        } catch (error) {
+            console.warn('Erreur lors de l\'injection des styles:', error);
+        }
     }
 
     /**
      * Mesure les dimensions du contenu
      */
     measureContent(doc) {
-        // Méthodes de mesure multiples pour plus de précision
-        const measurements = {
-            width: [
-                doc.documentElement.scrollWidth,
-                doc.documentElement.offsetWidth,
-                doc.documentElement.clientWidth,
-                doc.body?.scrollWidth || 0,
-                doc.body?.offsetWidth || 0,
-                doc.body?.clientWidth || 0
-            ].filter(val => val > 0),
+        if (!doc || this.isDestroyed) return;
 
-            height: [
-                doc.documentElement.scrollHeight,
-                doc.documentElement.offsetHeight,
-                doc.documentElement.clientHeight,
-                doc.body?.scrollHeight || 0,
-                doc.body?.offsetHeight || 0,
-                doc.body?.clientHeight || 0
-            ].filter(val => val > 0)
-        };
+        try {
+            // Méthodes de mesure multiples pour plus de précision
+            const measurements = {
+                width: [
+                    doc.documentElement.scrollWidth,
+                    doc.documentElement.offsetWidth,
+                    doc.documentElement.clientWidth,
+                    doc.body?.scrollWidth || 0,
+                    doc.body?.offsetWidth || 0,
+                    doc.body?.clientWidth || 0
+                ].filter(val => val > 0),
 
-        // Utiliser la valeur la plus représentative
-        this.contentW = Math.max(...measurements.width, 1);
-        this.contentH = Math.max(...measurements.height, 1);
+                height: [
+                    doc.documentElement.scrollHeight,
+                    doc.documentElement.offsetHeight,
+                    doc.documentElement.clientHeight,
+                    doc.body?.scrollHeight || 0,
+                    doc.body?.offsetHeight || 0,
+                    doc.body?.clientHeight || 0
+                ].filter(val => val > 0)
+            };
 
-        // Validation des dimensions (limite raisonnable)
-        const maxSize = 20000; // 20k pixels max
+            // Utiliser la valeur la plus représentative
+            this.contentW = Math.max(...measurements.width, 1);
+            this.contentH = Math.max(...measurements.height, 1);
 
-        if (this.contentW > maxSize) {
-            console.warn(`⚠️ Largeur très importante: ${this.contentW}px, limitée à ${maxSize}px`);
-            this.contentW = maxSize;
-        }
+            // Validation des dimensions (limite raisonnable)
+            const maxSize = 20000; // 20k pixels max
 
-        if (this.contentH > maxSize) {
-            console.warn(`⚠️ Hauteur très importante: ${this.contentH}px, limitée à ${maxSize}px`);
-            this.contentH = maxSize;
+            if (this.contentW > maxSize) {
+                console.warn(`⚠️ Largeur très importante: ${this.contentW}px, limitée à ${maxSize}px`);
+                this.contentW = maxSize;
+            }
+
+            if (this.contentH > maxSize) {
+                console.warn(`⚠️ Hauteur très importante: ${this.contentH}px, limitée à ${maxSize}px`);
+                this.contentH = maxSize;
+            }
+
+        } catch (error) {
+            console.warn('Erreur lors de la mesure du contenu:', error);
+            // Utiliser des valeurs par défaut
+            this.contentW = window.innerWidth;
+            this.contentH = window.innerHeight;
         }
     }
 
@@ -169,6 +271,8 @@ class ScaleHandler {
      * Applique la mise à l'échelle
      */
     applyScale() {
+        if (this.isDestroyed || !this.iframe) return;
+
         try {
             const viewport = {
                 width: window.innerWidth,
@@ -183,9 +287,7 @@ class ScaleHandler {
 
         } catch (e) {
             console.error('❌ Erreur dans applyScale:', e);
-            if (window.healthMonitor) {
-                window.healthMonitor._recordError(e);
-            }
+            this.recordError(e);
         }
     }
 
@@ -262,24 +364,30 @@ class ScaleHandler {
      * Applique la transformation à l'iframe
      */
     applyTransform(transform) {
+        if (this.isDestroyed || !this.iframe) return;
+
         const { width, height, scaleX, scaleY, left, top } = transform;
 
-        // Transformation CSS
-        const transformCSS = scaleX === scaleY
-            ? `scale(${scaleX})`
-            : `scale(${scaleX}, ${scaleY})`;
+        try {
+            // Transformation CSS
+            const transformCSS = scaleX === scaleY
+                ? `scale(${scaleX})`
+                : `scale(${scaleX}, ${scaleY})`;
 
-        Object.assign(this.iframe.style, {
-            width: `${width}px`,
-            height: `${height}px`,
-            transform: transformCSS,
-            transformOrigin: '0 0',
-            left: `${left}px`,
-            top: `${top}px`,
-            position: 'absolute',
-            border: 'none',
-            background: 'transparent'
-        });
+            Object.assign(this.iframe.style, {
+                width: `${width}px`,
+                height: `${height}px`,
+                transform: transformCSS,
+                transformOrigin: '0 0',
+                left: `${left}px`,
+                top: `${top}px`,
+                position: 'absolute',
+                border: 'none',
+                background: 'transparent'
+            });
+        } catch (error) {
+            console.warn('Erreur lors de l\'application de la transformation:', error);
+        }
     }
 
     /**
@@ -301,6 +409,8 @@ class ScaleHandler {
      * Change le mode de remplissage
      */
     setFillMode(mode) {
+        if (this.isDestroyed) return;
+
         const validModes = ['contain', 'cover', 'fill', 'fit-width', 'fit-height'];
         if (!validModes.includes(mode)) {
             console.error(`❌ Mode de remplissage invalide: ${mode}`);
@@ -319,15 +429,37 @@ class ScaleHandler {
      * Force une remesure
      */
     forceUpdate() {
+        if (this.isDestroyed) {
+            console.warn('⚠️ ScaleHandler détruit, impossible de forcer la mise à jour');
+            return;
+        }
+
         console.log('🔄 Mise à jour forcée du scaling');
         this.isReady = false;
-        setTimeout(() => this.onLoad(), this.config.loadDelay);
+        this.invalidateDocumentCache();
+        
+        setTimeout(() => {
+            if (!this.isDestroyed) {
+                this.handleLoad();
+            }
+        }, this.config.loadDelay);
     }
 
     /**
      * Récupère les informations de scaling
      */
     getScaleInfo() {
+        if (this.isDestroyed) {
+            return {
+                isDestroyed: true,
+                contentDimensions: null,
+                viewport: null,
+                scale: null,
+                config: null,
+                isReady: false
+            };
+        }
+
         const viewport = {
             width: window.innerWidth,
             height: window.innerHeight
@@ -344,7 +476,8 @@ class ScaleHandler {
             viewport: viewport,
             scale: scale,
             config: { ...this.config },
-            isReady: this.isReady
+            isReady: this.isReady,
+            isDestroyed: this.isDestroyed
         };
     }
 
@@ -352,6 +485,8 @@ class ScaleHandler {
      * Met à jour la configuration
      */
     updateConfig(newConfig) {
+        if (this.isDestroyed) return;
+
         const oldConfig = { ...this.config };
         this.config = { ...this.config, ...newConfig };
 
@@ -369,29 +504,105 @@ class ScaleHandler {
     }
 
     /**
-     * Nettoie les ressources
+     * Enregistre une erreur dans le monitoring (sécurisé)
+     */
+    recordError(error) {
+        if (window.healthMonitor && typeof window.healthMonitor.recordError === 'function') {
+            try {
+                window.healthMonitor.recordError({
+                    type: 'scale_handler',
+                    message: error?.message || 'Erreur inconnue du gestionnaire de mise à l\'échelle',
+                    source: 'ScaleHandler'
+                });
+            } catch (e) {
+                console.warn('Erreur lors de l\'enregistrement dans healthMonitor:', e);
+            }
+        }
+    }
+
+    /**
+     * Vérifie l'intégrité du gestionnaire
+     */
+    checkIntegrity() {
+        const issues = [];
+
+        if (this.isDestroyed) {
+            issues.push('Gestionnaire marqué comme détruit');
+        }
+
+        if (this.isReady && (!this.contentW || !this.contentH)) {
+            issues.push('Dimensions de contenu invalides');
+        }
+
+        if (this.iframe && this.isDestroyed) {
+            issues.push('Référence iframe conservée alors que le gestionnaire est détruit');
+        }
+
+        if (this.loadTimeout && this.isDestroyed) {
+            issues.push('Timeout actif alors que le gestionnaire est détruit');
+        }
+
+        if (issues.length > 0) {
+            console.warn('⚠️ Problèmes d\'intégrité ScaleHandler:', issues);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Nettoie les ressources - VERSION AMÉLIORÉE
      */
     cleanup() {
+        if (this.isDestroyed) {
+            console.warn('⚠️ ScaleHandler déjà détruit');
+            return;
+        }
+
         console.log('🧹 Nettoyage ScaleHandler');
         
-        if (this.loadHandler && this.iframe) {
-            this.iframe.removeEventListener('load', this.loadHandler);
-            this.loadHandler = null;
-        }
-        
-        if (this.resizeHandler) {
-            window.removeEventListener('resize', this.resizeHandler);
-            this.resizeHandler = null;
+        // Marquer comme détruit
+        this.isDestroyed = true;
+
+        // Nettoyer tous les timeouts
+        if (this.loadTimeout) {
+            clearTimeout(this.loadTimeout);
+            this.loadTimeout = null;
         }
         
         if (this.resizeTimeout) {
             clearTimeout(this.resizeTimeout);
             this.resizeTimeout = null;
         }
+
+        // Retirer les event listeners
+        if (this.boundOnLoad && this.iframe) {
+            try {
+                this.iframe.removeEventListener('load', this.boundOnLoad);
+            } catch (error) {
+                console.warn('Erreur lors du nettoyage listener load:', error);
+            }
+        }
         
+        if (this.boundOnResize) {
+            try {
+                window.removeEventListener('resize', this.boundOnResize);
+            } catch (error) {
+                console.warn('Erreur lors du nettoyage listener resize:', error);
+            }
+        }
+
+        // Nettoyer le cache
+        this.invalidateDocumentCache();
+        
+        // Reset des propriétés
         this.isReady = false;
-        this.iframeDoc = null; // Clear cached reference
         this.iframe = null;
+        this.boundOnLoad = null;
+        this.boundOnResize = null;
+        this.contentW = 0;
+        this.contentH = 0;
+        this.config = null;
     }
 }
 
