@@ -246,12 +246,13 @@
         }
 
         /**
-         * Time Formatting Utility
+         * Time Formatting Utility - FIXED: Removed TypeScript 'readonly' keyword
          */
         class TimeFormatter {
-            static readonly MILLISECONDS_PER_MINUTE = 60000;
-            static readonly MINUTES_PER_HOUR = 60;
-            static readonly HOURS_PER_DAY = 24;
+            // ✅ FIXED: Using standard JavaScript static properties
+            static MILLISECONDS_PER_MINUTE = 60000;
+            static MINUTES_PER_HOUR = 60;
+            static HOURS_PER_DAY = 24;
 
             static formatTimeAgo(date) {
                 const now = new Date();
