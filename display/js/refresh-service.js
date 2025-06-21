@@ -143,10 +143,10 @@ class RefreshService {
         if (this.currentRequest) {
             try {
                 this.currentRequest.controller.abort();
-                
+
                 // Attendre un tick pour s'assurer que l'annulation est traitée
                 await new Promise(resolve => setTimeout(resolve, 0));
-                
+
             } catch (error) {
                 console.warn('Erreur lors de l\'annulation de requête:', error);
             }
@@ -210,7 +210,7 @@ class RefreshService {
         } catch (error) {
             // Nettoyer le timeout en cas d'erreur
             clearTimeout(request.timeoutId);
-            
+
             if (error.name === 'AbortError') {
                 return { success: false, error: 'Request aborted' };
             }
@@ -238,14 +238,14 @@ class RefreshService {
         if (content && this.hasContentChanged(content)) {
             console.log('📄 Contenu modifié détecté, rechargement...');
             this.reloadIframe(url);
-            
-            // Sauvegarder la vraie date de modification
-            try { 
-                localStorage.setItem('hb_sync', timestamp.getTime()); 
-            } catch(e) {
+
+            // Sauvegarder et afficher la modification
+            try {
+                localStorage.setItem('hb_sync', timestamp.getTime());
+            } catch (e) {
                 console.warn('Impossible de sauvegarder la date de sync:', e);
             }
-            
+
             this.showModifBanner(timestamp);
         }
 
@@ -296,7 +296,7 @@ class RefreshService {
         if (this.isDestroyed) return;
 
         console.log(`🔄 Nouvelle tentative dans ${this.config.retryDelay}ms`);
-        
+
         setTimeout(this.boundRetry, this.config.retryDelay);
     }
 
@@ -436,7 +436,7 @@ class RefreshService {
         if (this.isDestroyed) return;
 
         console.log('⏸️ Service de refresh mis en pause');
-        
+
         if (this.timer) {
             clearInterval(this.timer);
             this.timer = null;
@@ -455,7 +455,7 @@ class RefreshService {
         }
 
         console.log('▶️ Service de refresh repris');
-        
+
         if (!this.timer) {
             this.scheduleNext();
         }
@@ -595,7 +595,7 @@ class RefreshService {
         });
 
         await Promise.allSettled(promises);
-        
+
         this.requestQueue.clear();
         this.currentRequest = null;
     }

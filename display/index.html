@@ -48,6 +48,9 @@
                     return;
                 }
 
+                // Restaurer la dernière date de modification
+                this.restoreLastSync();
+
                 // Initialiser le gestionnaire d'affichage
                 this.initDisplayManager();
 
@@ -97,6 +100,22 @@
 
                 console.log(`📺 Display chargé: ${this.display.name} (${this.display.slug})`);
                 return true;
+            }
+            
+            /**
+             * Restaure la dernière date de synchronisation
+             */
+            restoreLastSync() {
+                try {
+                    const lastSync = localStorage.getItem('hb_sync');
+                    if (lastSync) {
+                        const syncDate = new Date(parseInt(lastSync));
+                        console.log('📅 Dernière sync restaurée:', syncDate.toLocaleString());
+                        showModifBanner(syncDate);
+                    }
+                } catch (e) {
+                    console.warn('Erreur lors de la restauration de la dernière sync:', e);
+                }
             }
 
             /**
@@ -233,11 +252,13 @@
         function showModifBanner(date = new Date()) {
             const el = getOrCreateBanner('modif-banner', 'banner modif-banner bottom-right');
 
-            // Sauvegarder la nouvelle date de modification
-            try {
-                localStorage.setItem('hb_sync', date.getTime());
-            } catch (e) {
-                console.warn('Impossible de sauvegarder la date de sync:', e);
+            // Sauvegarder la nouvelle date de modification SEULEMENT si c'est une vraie modification
+            if (date && date !== showModifBanner.defaultDate) {
+                try {
+                    localStorage.setItem('hb_sync', date.getTime());
+                } catch (e) {
+                    console.warn('Impossible de sauvegarder la date de sync:', e);
+                }
             }
 
             // Nettoyer le timer existant pour éviter les doublons
@@ -249,19 +270,19 @@
             function updateTime() {
                 try {
                     const lastSync = localStorage.getItem('hb_sync');
-                    // Utiliser la date sauvegardée ou celle passée en paramètre
+                    // Utiliser la date sauvegardée en priorité
                     const syncDate = lastSync ? new Date(parseInt(lastSync)) : date;
                     const timeAgo = getTimeAgo(syncDate);
 
                     el.innerHTML = `
-                        <svg class="modif-icon" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
-                        </svg>
-                        <div class="modif-text">
-                            <div class="modif-primary">Synchronisé</div>
-                            <div class="modif-time">${timeAgo}</div>
-                        </div>
-                    `;
+                <svg class="modif-icon" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
+                </svg>
+                <div class="modif-text">
+                    <div class="modif-primary">Synchronisé</div>
+                    <div class="modif-time">${timeAgo}</div>
+                </div>
+            `;
                 } catch (e) {
                     console.warn('Erreur lors de la mise à jour du banner:', e);
                 }
@@ -273,6 +294,8 @@
             // Programmer les mises à jour futures
             modifBannerTimer = setInterval(updateTime, 60000); // Mise à jour chaque minute
         }
+        // Marquer la date par défaut pour éviter de sauvegarder les appels automatiques
+        showModifBanner.defaultDate = new Date();
 
         function showStatusBanner(date, ok = true, errorCount = 0) {
             showStatusBanner.lastDate = ok && date ? date : showStatusBanner.lastDate;
