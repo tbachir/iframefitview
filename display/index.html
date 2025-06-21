@@ -279,61 +279,6 @@
         }
 
         /**
-         * Configuration Validator
-         */
-        class ConfigValidator {
-            static validate(config) {
-                const errors = [];
-                
-                if (!config) {
-                    errors.push('Configuration object is required');
-                    return { isValid: false, errors };
-                }
-                
-                if (typeof config.defaultRefreshInterval !== 'number' || config.defaultRefreshInterval < 1000) {
-                    errors.push('defaultRefreshInterval must be a number >= 1000ms');
-                }
-                
-                if (!Array.isArray(config.displays)) {
-                    errors.push('displays must be an array');
-                } else {
-                    config.displays.forEach((display, index) => {
-                        errors.push(...this.validateDisplay(display, index));
-                    });
-                }
-                
-                return {
-                    isValid: errors.length === 0,
-                    errors
-                };
-            }
-            
-            static validateDisplay(display, index) {
-                const errors = [];
-                const prefix = `displays[${index}]`;
-                
-                if (!display || typeof display !== 'object') {
-                    errors.push(`${prefix} must be an object`);
-                    return errors;
-                }
-                
-                if (!display.name || typeof display.name !== 'string') {
-                    errors.push(`${prefix}.name is required and must be a string`);
-                }
-                
-                if (!display.slug || !/^[a-z0-9-]+$/.test(display.slug)) {
-                    errors.push(`${prefix}.slug must be alphanumeric with hyphens only`);
-                }
-                
-                if (!display.path || typeof display.path !== 'string') {
-                    errors.push(`${prefix}.path is required and must be a string`);
-                }
-                
-                return errors;
-            }
-        }
-
-        /**
          * Core Application - Refactored with utilities
          */
         class Core {
@@ -371,6 +316,12 @@
             }
 
             validateConfig() {
+                // ✅ FIXED: Use the ConfigValidator from config.js instead of declaring a new one
+                if (typeof ConfigValidator === 'undefined') {
+                    console.error('ConfigValidator not available from config.js');
+                    return false;
+                }
+
                 const validation = ConfigValidator.validate(window.AppConfig);
                 if (!validation.isValid) {
                     this.errorReporter.report(new Error('Configuration validation failed'), {
