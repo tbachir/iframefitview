@@ -3,6 +3,10 @@
  * Version 3.0 - Focused on coordination and lifecycle management
  */
 
+// Import utility classes
+import { EventManager } from '../../src/utils/EventManager.js';
+import { ErrorReporter } from '../../src/utils/ErrorReporter.js';
+
 /**
  * Display Renderer - Handles HTML creation only
  */
@@ -226,10 +230,11 @@ class IframeManager {
  * Service Coordinator - Manages service lifecycle
  */
 class ServiceCoordinator {
-    constructor(display, iframe, errorReporter) {
+    constructor(display, iframe, errorReporter, bannerManager) {
         this.display = display;
         this.iframe = iframe;
         this.errorReporter = errorReporter;
+        this.bannerManager = bannerManager;
         this.services = new Map();
         this.isDestroyed = false;
     }
@@ -244,7 +249,7 @@ class ServiceCoordinator {
 
             // Initialize refresh service if enabled
             if (this.shouldEnableRefresh()) {
-                const refreshService = new RefreshService(this.display, this.iframe, this.errorReporter);
+                const refreshService = new RefreshService(this.display, this.iframe, this.errorReporter, this.bannerManager);
                 this.services.set('refresh', refreshService);
             } else {
                 console.log('📴 Service de refresh désactivé pour ce display');
@@ -319,6 +324,7 @@ class ServiceCoordinator {
         this.services.clear();
         this.display = null;
         this.iframe = null;
+        this.bannerManager = null;
     }
 }
 
@@ -326,9 +332,10 @@ class ServiceCoordinator {
  * Display Manager - Coordinating class with single responsibility
  */
 class DisplayManager {
-    constructor(display, errorReporter) {
+    constructor(display, errorReporter, bannerManager) {
         this.display = display;
         this.errorReporter = errorReporter || new ErrorReporter();
+        this.bannerManager = bannerManager;
         this.renderer = new DisplayRenderer(display, this.errorReporter);
         this.iframeManager = null;
         this.serviceCoordinator = null;
@@ -352,7 +359,7 @@ class DisplayManager {
 
             // Initialize managers
             this.iframeManager = new IframeManager(this.iframe, this.errorReporter);
-            this.serviceCoordinator = new ServiceCoordinator(this.display, this.iframe, this.errorReporter);
+            this.serviceCoordinator = new ServiceCoordinator(this.display, this.iframe, this.errorReporter, this.bannerManager);
 
             // Setup iframe and services
             this.iframeManager.setup();
@@ -432,6 +439,7 @@ class DisplayManager {
         this.iframe = null;
         this.display = null;
         this.renderer = null;
+        this.bannerManager = null;
     }
 }
 
@@ -439,3 +447,6 @@ class DisplayManager {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { DisplayManager, DisplayRenderer, IframeManager, ServiceCoordinator };
 }
+
+// Make DisplayManager globally available for non-module scripts
+window.DisplayManager = DisplayManager;

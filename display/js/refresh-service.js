@@ -2,11 +2,17 @@
  * Refresh Service - Optimized with better error handling and performance
  * Version 3.0 - Reduced complexity and improved reliability
  */
+
+// Import utility classes
+import { ErrorReporter } from '../../src/utils/ErrorReporter.js';
+import { TimeFormatter } from '../../src/utils/TimeFormatter.js';
+
 class RefreshService {
-    constructor(display, iframe, errorReporter) {
+    constructor(display, iframe, errorReporter, bannerManager) {
         this.display = display;
         this.iframe = iframe;
         this.errorReporter = errorReporter || new ErrorReporter();
+        this.bannerManager = bannerManager;
         this.interval = display.refreshInterval || window.AppConfig?.defaultRefreshInterval || 30000;
         this.timer = null;
         this.lastHash = null;
@@ -458,25 +464,40 @@ class RefreshService {
         console.log('⚙️ Configuration refresh mise à jour:', newConfig);
     }
 
-    // Banner integration methods (using global functions for backward compatibility)
+    // Banner integration methods using BannerManager
     showStatusBanner(date, ok = true, errorCount = 0) {
-        if (typeof window.showStatusBanner === 'function') {
-            try {
-                window.showStatusBanner(date, ok, errorCount);
-            } catch (error) {
-                console.warn('Erreur lors de l\'affichage du status banner:', error);
-            }
+        if (!this.bannerManager) return;
+
+        this.showStatusBanner.lastDate = ok && date ? date : this.showStatusBanner.lastDate;
+
+        let statusClass, statusText, secondaryText;
+
+        if (!ok) {
+            statusClass = 'status-fail';
+            statusText = 'Hors ligne';
+            secondaryText = 'Reconnexion...';
+        } else if (errorCount > 5) {
+            statusClass = 'status-warning';
+            statusText = 'Instable';
+            secondaryText = `${errorCount} erreurs`;
+        } else {
+            statusClass = 'status-online';
+            statusText = 'En ligne';
+            secondaryText = TimeFormatter.formatTime(this.showStatusBanner.lastDate);
         }
+
+        this.bannerManager.show('status', {
+            statusClass,
+            statusText,
+            secondaryText
+        }, { id: 'status-banner' });
     }
 
     showModifBanner(date = new Date()) {
-        if (typeof window.showModifBanner === 'function') {
-            try {
-                window.showModifBanner(date);
-            } catch (error) {
-                console.warn('Erreur lors de l\'affichage du modif banner:', error);
-            }
-        }
+        if (!this.bannerManager) return;
+
+        const timeAgo = TimeFormatter.formatTimeAgo(date);
+        this.bannerManager.show('modif', { timeAgo }, { id: 'modif-banner' });
     }
 
     recordError(error) {
@@ -536,6 +557,7 @@ class RefreshService {
         this.lastHash = null;
         this.iframe = null;
         this.display = null;
+        this.bannerManager = null;
     }
 
     checkIntegrity() {
@@ -570,3 +592,6 @@ class RefreshService {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = RefreshService;
 }
+
+// Make RefreshService globally available for non-module scripts
+window.RefreshService = RefreshService;

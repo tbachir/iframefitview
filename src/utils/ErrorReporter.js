@@ -2,7 +2,7 @@
  * Centralized Error Reporting Utility
  * Provides consistent error reporting across the application
  */
-class ErrorReporter {
+export class ErrorReporter {
     constructor(healthMonitor = null) {
         this.healthMonitor = healthMonitor || window.healthMonitor;
         this.fallbackLogger = console;
@@ -127,11 +127,3 @@ class ErrorReporter {
         };
     }
 }
-
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = ErrorReporter;
-}
-
-// Global instance for immediate usage
-window.ErrorReporter = ErrorReporter;

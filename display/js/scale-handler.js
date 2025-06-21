@@ -3,6 +3,10 @@
  * Version 3.0 - Reduced complexity and improved efficiency
  */
 
+// Import utility classes
+import { ErrorReporter } from '../../src/utils/ErrorReporter.js';
+import { EventManager } from '../../src/utils/EventManager.js';
+
 /**
  * Iframe Document Accessor - Centralized iframe access with caching
  */
@@ -557,7 +561,6 @@ class ScaleHandler {
         this.contentW = 0;
         this.contentH = 0;
         this.lastContentHash = null;
-        this.config = null;
         this.iframeAccessor = null;
     }
 }
@@ -566,3 +569,6 @@ class ScaleHandler {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { ScaleHandler, IframeAccessor };
 }
+
+// Make ScaleHandler globally available for non-module scripts
+window.ScaleHandler = ScaleHandler;
