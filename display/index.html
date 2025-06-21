@@ -135,10 +135,15 @@
             }
 
             /**
-             * Nettoie les ressources avant fermeture
+             * Nettoie les ressources avant fermeture - VERSION AMÉLIORÉE
              */
             cleanup() {
                 console.log('🧹 Nettoyage Core Application');
+
+                // Nettoyer les banners et leurs timers
+                if (typeof window.cleanupBanners === 'function') {
+                    window.cleanupBanners();
+                }
 
                 if (this.displayManager) {
                     this.displayManager.cleanup();
@@ -158,14 +163,55 @@
                         slug: this.display.slug,
                         path: this.display.path
                     } : null,
-                    displayManager: this.displayManager ? this.displayManager.getDisplayInfo() : null
+                    displayManager: this.displayManager ? this.displayManager.getDisplayInfo() : null,
+                    lastSync: this.getLastSyncInfo()
                 };
+            }
+
+            /**
+             * Récupère les informations de dernière synchronisation
+             */
+            getLastSyncInfo() {
+                try {
+                    const lastSync = localStorage.getItem('hb_sync');
+                    if (lastSync) {
+                        const date = new Date(parseInt(lastSync));
+                        return {
+                            timestamp: parseInt(lastSync),
+                            date: date.toLocaleString(),
+                            timeAgo: this.getTimeAgo(date)
+                        };
+                    }
+                } catch (e) {
+                    console.warn('Erreur lors de la lecture de la dernière sync:', e);
+                }
+                return null;
+            }
+
+            /**
+             * Calcule le temps écoulé depuis une date
+             */
+            getTimeAgo(date) {
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMins = Math.floor(diffMs / 60000);
+
+                if (diffMins < 1) return 'à l\'instant';
+                if (diffMins < 60) return `il y a ${diffMins}min`;
+
+                const diffHours = Math.floor(diffMins / 60);
+                if (diffHours < 24) return `il y a ${diffHours}h`;
+
+                const diffDays = Math.floor(diffHours / 24);
+                return `il y a ${diffDays}j`;
             }
         }
 
         /**
          * Fonctions utilitaires globales
          */
+
+        let modifBannerTimer = null;
 
         function getOrCreateBanner(id, classes) {
             let el = document.getElementById(id);
@@ -186,13 +232,27 @@
 
         function showModifBanner(date = new Date()) {
             const el = getOrCreateBanner('modif-banner', 'banner modif-banner bottom-right');
-            
+
+            // Sauvegarder la nouvelle date de modification
+            try {
+                localStorage.setItem('hb_sync', date.getTime());
+            } catch (e) {
+                console.warn('Impossible de sauvegarder la date de sync:', e);
+            }
+
+            // Nettoyer le timer existant pour éviter les doublons
+            if (modifBannerTimer) {
+                clearInterval(modifBannerTimer);
+                modifBannerTimer = null;
+            }
+
             function updateTime() {
                 try {
                     const lastSync = localStorage.getItem('hb_sync');
+                    // Utiliser la date sauvegardée ou celle passée en paramètre
                     const syncDate = lastSync ? new Date(parseInt(lastSync)) : date;
                     const timeAgo = getTimeAgo(syncDate);
-                    
+
                     el.innerHTML = `
                         <svg class="modif-icon" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
@@ -202,11 +262,16 @@
                             <div class="modif-time">${timeAgo}</div>
                         </div>
                     `;
-                } catch(e) {}
+                } catch (e) {
+                    console.warn('Erreur lors de la mise à jour du banner:', e);
+                }
             }
-            
+
+            // Mise à jour immédiate
             updateTime();
-            setInterval(updateTime, 60000); // Mise à jour chaque minute
+
+            // Programmer les mises à jour futures
+            modifBannerTimer = setInterval(updateTime, 60000); // Mise à jour chaque minute
         }
 
         function showStatusBanner(date, ok = true, errorCount = 0) {
@@ -269,7 +334,7 @@
                 </svg>
                 <span>${message}</span>
             `;
-            
+
             if (duration > 0) {
                 setTimeout(() => {
                     el.remove();
@@ -285,7 +350,7 @@
                 </svg>
                 <span>${message}</span>
             `;
-            
+
             if (duration > 0) {
                 setTimeout(() => {
                     el.remove();
@@ -298,11 +363,20 @@
             if (el) el.remove();
         }
 
+        // Fonction de nettoyage pour éviter les fuites mémoire
+        function cleanupBanners() {
+            if (modifBannerTimer) {
+                clearInterval(modifBannerTimer);
+                modifBannerTimer = null;
+            }
+        }
+
         // Rendre les fonctions accessibles globalement
         window.getOrCreateBanner = getOrCreateBanner;
         window.formatTime = formatTime;
         window.showModifBanner = showModifBanner;
         window.showStatusBanner = showStatusBanner;
+        window.cleanupBanners = cleanupBanners;
 
         /**
          * Initialisation et gestion du cycle de vie

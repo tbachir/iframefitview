@@ -239,8 +239,13 @@ class RefreshService {
             console.log('📄 Contenu modifié détecté, rechargement...');
             this.reloadIframe(url);
             
-            // Stocker et afficher la modification
-            try { localStorage.setItem('hb_sync', timestamp.getTime()); } catch(e) {}
+            // Sauvegarder la vraie date de modification
+            try { 
+                localStorage.setItem('hb_sync', timestamp.getTime()); 
+            } catch(e) {
+                console.warn('Impossible de sauvegarder la date de sync:', e);
+            }
+            
             this.showModifBanner(timestamp);
         }
 

@@ -35,6 +35,8 @@
     box-sizing: border-box;
 }
 
+html { font-size: 16px;;}
+
 body {
     font-family: var(--font-family);
     height: 100vh;
@@ -51,7 +53,7 @@ body {
     position: fixed;
     top: 0;
     left: 0;
-    padding: 0.625rem 0.9375rem;
+    padding: 0.4rem 0.8rem 0.4rem 0.3rem;
     z-index: 1000;
     display: flex;
     align-items: center;
@@ -124,6 +126,7 @@ body {
     line-height: 1.4;
     box-shadow: var(--shadow-md);
     transition: var(--transition);
+    outline: none !important;
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
@@ -153,6 +156,7 @@ body {
 .status-banner {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
     color: var(--text-primary);
+    outline: none !important;
     border-color: var(--border-color);
 }
 

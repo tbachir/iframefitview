@@ -11,24 +11,22 @@
 const HEALTH_CONFIG = {
     // Intervalles (en millisecondes)
     healthCheckInterval: 30000,        // Vérification santé générale
-    memoryCheckInterval: 15000,        // Vérification mémoire spécifique
-    uiUpdateInterval: 5000,            // Mise à jour interface
+    memoryCheckInterval: 30000,        // Vérification mémoire spécifique
+    uiUpdateInterval: 30000,            // Mise à jour interface
 
-    // Seuils d'alerte
-    memoryThreshold: 80,               // % mémoire avant alerte
-    performanceThreshold: 1000,        // ms pour action considérée lente
-    errorThreshold: 5,                 // erreurs consécutives max
+    // Seuils d'alerte - VALEURS CORRIGÉES
+    memoryThreshold: 40,               // % mémoire avant alerte
+    performanceThreshold: 50,          // ms pour Long Task (était 1000, maintenant 50)
+    errorThreshold: 10,                 // erreurs consécutives max
     memoryWarningLimit: 3,             // alertes mémoire avant action
 
     // Auto-récupération
     autoRecover: true,                 // Tentatives auto de récupération
     maxRecoveryAttempts: 3,            // Tentatives max avant abandon
-    recoveryDelay: 5000,               // Délai entre tentatives
+    recoveryDelay: 60000,               // Délai entre tentatives
     preventiveReloadAfter: 12 * 60 * 60 * 1000, // 12h
 
     // Interface utilisateur
-    uiPosition: 'top-right',        // Position du bouton
-    showDetailedStats: true,           // Afficher stats détaillées
     logLevel: 'warn',                  // console log level
 
     // Monitoring avancé
@@ -329,31 +327,58 @@ class HealthMonitor {
      */
     checkPerformance() {
         try {
-            const now = performance.now();
+            // Mesurer les performances de rendu actuelles
+            const paintEntries = performance.getEntriesByType('paint');
+            const navigationEntries = performance.getEntriesByType('navigation');
 
-            // Mesurer la latence de traitement
-            setTimeout(() => {
-                const delay = performance.now() - now;
+            let performanceScore = 'excellent';
+            let hasSlowOperation = false;
 
-                if (delay > this.config.performanceThreshold) {
-                    this.metrics.slowOperations++;
-                    this.recordError({
-                        type: 'performance',
-                        message: `Opération lente détectée: ${delay.toFixed(2)}ms`,
-                        delay: delay
-                    });
+            // Vérifier les métriques de navigation si disponibles
+            if (navigationEntries.length > 0) {
+                const nav = navigationEntries[0];
+                const domContentLoaded = nav.domContentLoadedEventEnd - nav.domContentLoadedEventStart;
+                const loadComplete = nav.loadEventEnd - nav.loadEventStart;
+
+                if (domContentLoaded > 1000 || loadComplete > 2000) {
+                    performanceScore = 'poor';
+                    hasSlowOperation = true;
+                } else if (domContentLoaded > 500 || loadComplete > 1000) {
+                    performanceScore = 'fair';
                 }
+            }
 
-                // Ajouter à l'historique
-                this.addToHistory('performance', {
-                    timestamp: Date.now(),
-                    delay: delay,
-                    score: delay < 100 ? 'excellent' : delay < 500 ? 'good' : delay < 1000 ? 'fair' : 'poor'
+            // Vérifier les métriques de paint
+            const fcp = paintEntries.find(entry => entry.name === 'first-contentful-paint');
+            if (fcp && fcp.startTime > 1500) {
+                performanceScore = 'poor';
+                hasSlowOperation = true;
+            } else if (fcp && fcp.startTime > 800) {
+                performanceScore = 'fair';
+            }
+
+            // Enregistrer une opération lente seulement si vraiment détectée
+            if (hasSlowOperation) {
+                this.metrics.slowOperations++;
+                this.recordError({
+                    type: 'performance',
+                    message: `Performance dégradée détectée: ${performanceScore}`,
+                    details: {
+                        fcp: fcp?.startTime || 'N/A',
+                        score: performanceScore
+                    }
                 });
+            }
 
-            }, 0);
+            // Ajouter à l'historique avec des métriques réelles
+            this.addToHistory('performance', {
+                timestamp: Date.now(),
+                score: performanceScore,
+                fcp: fcp?.startTime || null,
+                hasSlowOperation: hasSlowOperation
+            });
 
-            // Vérifier Web Vitals si disponible
+            // Démarrer la surveillance des Long Tasks si disponible
             if (this.config.trackPerformanceMetrics && 'PerformanceObserver' in window) {
                 this.trackWebVitals();
             }
@@ -397,8 +422,8 @@ class HealthMonitor {
      * Vérifie si l'API mémoire complète est disponible
      */
     isMemoryAPIAvailable() {
-        return window.crossOriginIsolated && 
-               typeof performance.measureUserAgentSpecificMemory === 'function';
+        return window.crossOriginIsolated &&
+            typeof performance.measureUserAgentSpecificMemory === 'function';
     }
 
     /**
@@ -1043,7 +1068,7 @@ class HealthMonitor {
         if (typeof text !== 'string') {
             return String(text);
         }
-        
+
         const map = {
             '&': '&amp;',
             '<': '&lt;',
@@ -1052,7 +1077,7 @@ class HealthMonitor {
             "'": '&#39;',
             '/': '&#x2F;'
         };
-        
+
         return text.replace(/[&<>"'\/]/g, (s) => map[s]);
     }
 
@@ -1062,7 +1087,7 @@ class HealthMonitor {
     isSystemError(type) {
         const systemErrorTypes = [
             'javascript',
-            'unhandled_promise', 
+            'unhandled_promise',
             'resource',
             'health_check',
             'memory_check',
@@ -1149,7 +1174,7 @@ class HealthMonitor {
 
         const historyKey = `${type}History`;
         const history = this.state[historyKey];
-        
+
         if (history && Array.isArray(history)) {
             history.push(entry);
             if (history.length > 50) {
@@ -1227,9 +1252,19 @@ class HealthMonitor {
      * Retourne le statut de performance
      */
     getPerformanceStatus() {
-        if (this.metrics.slowOperations === 0) return 'Excellent';
-        if (this.metrics.slowOperations < 3) return 'Good';
-        if (this.metrics.slowOperations < 10) return 'Fair';
+        const recentPerformanceEntries = this.state.performanceHistory.slice(-5);
+
+        if (recentPerformanceEntries.length === 0) {
+            return 'Unknown';
+        }
+
+        const recentIssues = recentPerformanceEntries.filter(entry =>
+            entry.data.hasSlowOperation || entry.data.score === 'poor'
+        ).length;
+
+        if (recentIssues === 0) return 'Excellent';
+        if (recentIssues <= 1) return 'Good';
+        if (recentIssues <= 3) return 'Fair';
         return 'Poor';
     }
 
@@ -1246,24 +1281,70 @@ class HealthMonitor {
     /**
      * Suit les Web Vitals
      */
+
     trackWebVitals() {
         try {
             if (this.observers.performance) {
                 return; // Déjà configuré
             }
 
+            // Observer pour les Long Tasks (vraies opérations lentes)
             this.observers.performance = new PerformanceObserver((list) => {
                 for (const entry of list.getEntries()) {
-                    if (entry.entryType === 'measure' && entry.duration > this.config.performanceThreshold) {
-                        this.metrics.slowOperations++;
+                    if (entry.entryType === 'longtask') {
+                        // Long Task détectée (>50ms) - avec validation
+                        if (entry.duration > 50 && entry.duration < 30000) { // Max 30s
+                            this.metrics.slowOperations++;
+                            this.recordError({
+                                type: 'performance',
+                                message: `Long Task détectée: ${entry.duration.toFixed(2)}ms`,
+                                duration: entry.duration
+                            });
+                        }
+                    }
+
+                    if (entry.entryType === 'layout-shift' && entry.hadRecentInput === false) {
+                        // Layout Shift inattendu - avec validation
+                        if (entry.value > 0.1 && entry.value < 5.0) { // Max 5.0
+                            this.recordError({
+                                type: 'performance',
+                                message: `Layout Shift important: ${entry.value.toFixed(3)}`,
+                                cls: entry.value
+                            });
+                        }
+                    }
+
+                    if (entry.entryType === 'largest-contentful-paint') {
+                        // LCP lent - avec validation stricte
+                        if (entry.startTime > 2500 && entry.startTime < 30000) { // Entre 2.5s et 30s
+                            this.recordError({
+                                type: 'performance',
+                                message: `LCP lent: ${entry.startTime.toFixed(2)}ms`,
+                                lcp: entry.startTime
+                            });
+                        } else if (entry.startTime >= 30000) {
+                            // Log de debug pour valeurs aberrantes
+                            console.debug(`LCP aberrant ignoré: ${entry.startTime}ms`);
+                        }
                     }
                 }
             });
-            
-            this.observers.performance.observe({ entryTypes: ['measure'] });
+
+            // Observer les différents types de métriques de performance
+            const entryTypes = ['longtask', 'layout-shift', 'largest-contentful-paint'];
+
+            entryTypes.forEach(type => {
+                try {
+                    this.observers.performance.observe({ entryTypes: [type] });
+                } catch (e) {
+                    // Type non supporté dans ce navigateur, ignorer silencieusement
+                    console.debug(`Type de métrique non supporté: ${type}`);
+                }
+            });
+
         } catch (error) {
             // Silently fail if not supported
-            console.warn('Web Vitals tracking non supporté:', error);
+            console.warn('Surveillance des Web Vitals non supportée:', error);
         }
     }
 
