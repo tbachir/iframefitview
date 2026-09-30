@@ -1,0 +1,471 @@
+HuddleBoard
+FICHE TEMPORAIRE — INFORMATIONS À COMPLÉTER POUR L’ENVIRONNEMENT CLIENT
+
+Objet
+-----
+Cette fiche sert uniquement à compléter les informations que le dépôt Git ne
+permet pas de confirmer.
+
+Merci de renseigner ce qui est connu et d’écrire "INCONNU" lorsque l’information
+n’est pas disponible. Ne pas deviner.
+
+Une fois les informations validées et intégrées dans documentation.html et
+documentation.txt, cette fiche peut être supprimée.
+
+======================================================================
+A. RESPONSABILITÉS ET CONTACTS
+======================================================================
+
+Responsable métier du service :
+Nom :
+Équipe :
+Contact :
+
+Responsable / référent IT :
+Nom :
+Équipe :
+Contact :
+
+Référent ThinManager :
+Nom :
+Équipe :
+Contact :
+
+Référent IIS / Windows Server :
+Nom :
+Équipe :
+Contact :
+
+Référent réseau :
+Nom :
+Équipe :
+Contact :
+
+Support à contacter par les utilisateurs :
+Canal :
+Horaires :
+Procédure d’escalade :
+
+Qui valide la mise en production d’un nouveau display ?
+
+Qui peut modifier config.js ?
+
+Qui peut modifier les tâches Robocopy ?
+
+Qui peut modifier IIS ?
+
+Qui peut modifier ThinManager ?
+
+======================================================================
+B. CLASSEURS EXCEL ET PARTAGES
+======================================================================
+
+Chemin réseau du ou des classeurs de production :
+\serveur\partage\...
+
+Le chemin est-il identique pour toutes les équipes ?
+[ ] Oui
+[ ] Non
+
+Si non, règle de nommage / exemple :
+
+Groupe Windows donnant les droits aux membres d’une équipe :
+
+Type de droits attendu :
+[ ] Lecture
+[ ] Modification
+[ ] Autre :
+
+Le classeur est-il basé sur un modèle commun ?
+[ ] Oui
+[ ] Non
+
+Emplacement du modèle :
+
+Version d’Excel utilisée sur les postes :
+
+La publication HTML est-elle configurée directement dans chaque classeur ?
+[ ] Oui
+[ ] Non
+[ ] À confirmer
+
+Après fermeture/réouverture du classeur, la destination de publication est-elle
+conservée ?
+[ ] Oui, confirmé
+[ ] Non
+[ ] À tester
+
+Chemin de publication source :
+
+La publication produit-elle un répertoire de ressources annexes ?
+[ ] Oui
+[ ] Non
+[ ] Selon le classeur
+
+Exemple de nom de fichier HTML publié :
+
+Procédure métier exacte pour déclencher la publication :
+[ ] Ctrl+S
+[ ] Bouton Enregistrer
+[ ] Macro
+[ ] Autre :
+
+======================================================================
+C. ROBOCOPY / TRANSFERT
+======================================================================
+
+Le mécanisme est-il :
+[ ] Tâche planifiée Windows
+[ ] Script lancé autrement
+[ ] Service / ordonnanceur
+[ ] Inconnu
+[ ] Autre :
+
+Nom de la tâche / du job :
+
+Serveur ou machine exécutant le transfert :
+
+Compte d’exécution :
+
+Chemin source exact :
+
+Chemin destination exact :
+
+Commande Robocopy exacte ou emplacement du script :
+
+Fréquence :
+Toutes les ______ minutes / déclencheur :
+
+Options Robocopy importantes utilisées :
+
+Les suppressions côté source sont-elles répercutées côté destination ?
+[ ] Oui
+[ ] Non
+[ ] Inconnu
+
+Emplacement des journaux :
+
+Durée de conservation des journaux :
+
+Code retour considéré comme normal :
+
+Que faire en cas d’échec de copie ?
+
+Le transfert est-il spécifique par équipe ou mutualisé ?
+[ ] Une tâche par équipe
+[ ] Une tâche commune
+[ ] Autre :
+
+======================================================================
+D. SERVEUR IIS
+======================================================================
+
+Nom du serveur :
+
+Version OS :
+Windows Server 2022 [ ] confirmé
+
+Nom DNS :
+
+Adresse IP (si elle doit figurer dans la documentation interne) :
+
+Nom du site IIS :
+
+Application / répertoire virtuel / dossier sous site existant :
+
+Chemin physique de HuddleBoard :
+
+URL racine :
+
+Protocole :
+[ ] HTTP
+[ ] HTTPS
+
+Port :
+
+Si HTTPS :
+Nom du certificat :
+Autorité :
+Date d’expiration :
+Procédure de renouvellement :
+
+Authentification IIS :
+[ ] Anonyme
+[ ] Windows
+[ ] Autre :
+[ ] À confirmer
+
+Identité du pool d’applications, si applicable :
+
+Droits NTFS nécessaires sur le dossier web :
+
+Existe-t-il un web.config réellement utilisé en production ?
+[ ] Oui
+[ ] Non
+[ ] Inconnu
+
+Si oui, emplacement et copie à fournir :
+
+Cache IIS / proxy / reverse proxy particulier ?
+[ ] Oui
+[ ] Non
+[ ] Inconnu
+Détails :
+
+Chemin des journaux IIS :
+
+Nom / ID du site dans les logs :
+
+Procédure autorisée pour redémarrer le site / pool / IIS :
+
+======================================================================
+E. STRUCTURE DES DISPLAYS
+======================================================================
+
+Liste des displays réellement en production :
+
+1.
+Nom :
+Slug :
+Path :
+Équipe :
+Terminal :
+Intervalle de refresh :
+Description :
+
+2.
+Nom :
+Slug :
+Path :
+Équipe :
+Terminal :
+Intervalle de refresh :
+Description :
+
+3.
+Nom :
+Slug :
+Path :
+Équipe :
+Terminal :
+Intervalle de refresh :
+Description :
+
+Ajouter des lignes si nécessaire.
+
+Existe-t-il une convention de nommage des slugs ?
+[ ] Oui
+[ ] Non
+Détails :
+
+Existe-t-il une convention de répertoires IIS par équipe ?
+[ ] Oui
+[ ] Non
+Détails :
+
+======================================================================
+F. THINMANAGER / CHROME CONTAINER
+======================================================================
+
+Version ThinManager :
+
+Nom du serveur ThinManager :
+
+Type de terminaux :
+
+Nombre approximatif d’écrans HuddleBoard :
+
+Chrome Container utilisé ?
+[ ] Oui
+[ ] Non
+[ ] Seulement certains terminaux
+
+Version du composant / navigateur si connue :
+
+Nom du profil / package / application ThinManager :
+
+URL configurée :
+
+Lancement automatique au démarrage ?
+[ ] Oui
+[ ] Non
+
+Mode plein écran / kiosk ?
+[ ] Oui
+[ ] Non
+
+Paramètres ou switches Chrome spécifiques réellement utilisés :
+
+Résolution(s) des écrans :
+
+Gestion du cache particulière ?
+[ ] Oui
+[ ] Non
+[ ] Inconnu
+
+Procédure pour relancer un affichage :
+
+Procédure pour redémarrer un terminal :
+
+======================================================================
+G. RDS
+======================================================================
+
+Des écrans utilisent-ils une session RDS ?
+[ ] Oui
+[ ] Non
+
+Si oui :
+
+Serveur / ferme RDS :
+
+Compte ou type de compte utilisé :
+
+Navigateur :
+
+Version :
+
+URL :
+
+Lancement automatique ?
+[ ] Oui
+[ ] Non
+
+Mode plein écran ?
+[ ] Oui
+[ ] Non
+
+Procédure de reconnexion / relance :
+
+======================================================================
+H. RÉSEAU ET SÉCURITÉ
+======================================================================
+
+Réseau / VLAN des terminaux :
+
+Les terminaux accèdent-ils directement à IIS ?
+[ ] Oui
+[ ] Non
+[ ] Inconnu
+
+Proxy utilisé ?
+[ ] Oui
+[ ] Non
+
+Firewall / règle spécifique nécessaire ?
+
+DNS utilisé pour HuddleBoard :
+
+L’URL est-elle résolue de la même manière depuis :
+- réseau bureautique ? [ ] Oui [ ] Non
+- terminaux ?          [ ] Oui [ ] Non
+- RDS ?                [ ] Oui [ ] Non
+
+Contraintes de sécurité ou de durcissement à documenter :
+
+Procédure en cas de publication accidentelle de données confidentielles :
+
+======================================================================
+I. SAUVEGARDE ET REPRISE
+======================================================================
+
+Sauvegarde des classeurs :
+Outil :
+Fréquence :
+Rétention :
+Responsable :
+
+Sauvegarde des fichiers HuddleBoard :
+Outil :
+Fréquence :
+Rétention :
+Responsable :
+
+Sauvegarde des scripts / tâches Robocopy :
+
+Sauvegarde de la configuration IIS :
+
+Sauvegarde de la configuration ThinManager :
+
+Existe-t-il une procédure de restauration testée ?
+[ ] Oui
+[ ] Non
+
+Date du dernier test :
+
+======================================================================
+J. RECETTE ET DÉLAIS
+======================================================================
+
+Délai habituel observé entre Ctrl+S et écran :
+
+Mesure 1 :
+Ctrl+S :
+Publication :
+Robocopy :
+Cible IIS :
+Écran :
+
+Mesure 2 :
+Ctrl+S :
+Publication :
+Robocopy :
+Cible IIS :
+Écran :
+
+Mesure 3 :
+Ctrl+S :
+Publication :
+Robocopy :
+Cible IIS :
+Écran :
+
+Délai communiqué aux utilisateurs :
+
+Comportement attendu en cas de coupure réseau :
+
+Comportement attendu en cas d’indisponibilité IIS :
+
+Comportement attendu si le classeur reste ouvert plusieurs jours :
+
+Le test "ressource annexe seule" a-t-il été fait ?
+[ ] Oui
+[ ] Non
+
+Résultat :
+
+======================================================================
+K. MAINTENANCE ET CHANGEMENTS
+======================================================================
+
+Fenêtre de maintenance :
+
+Qui doit être prévenu avant modification ?
+
+Procédure de mise à jour de config.js :
+
+Procédure de déploiement des fichiers HuddleBoard :
+
+Procédure de retour arrière :
+
+Y a-t-il une validation préalable sur un environnement de test ?
+[ ] Oui
+[ ] Non
+
+Emplacement / URL de l’environnement de test :
+
+======================================================================
+L. AUTRES INFORMATIONS À CONSERVER
+======================================================================
+
+Notes :
+
+Réserves connues :
+
+Points non documentés :
+
+Documents internes complémentaires à référencer :
+
+======================================================================
+FIN DE LA FICHE
+======================================================================
