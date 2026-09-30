@@ -1,0 +1,704 @@
+HuddleBoard
+Guide du service, de la mise en place d’une équipe et de l’exploitation
+Application propriétaire · usage interne · 30 septembre 2026
+
+======================================================================
+1. OBJET ET PÉRIMÈTRE
+======================================================================
+
+HuddleBoard diffuse sur des écrans de production les informations saisies
+dans un classeur Excel partagé.
+
+La chaîne complète est la suivante :
+
+  Classeur Excel partagé
+          |
+          v
+  Publication HTML par Excel
+          |
+          v
+  Transfert Robocopy
+          |
+          v
+  Répertoire web servi par IIS
+          |
+          v
+  HuddleBoard
+          |
+          v
+  ThinManager / Chrome Container / RDS / navigateur qualifié
+          |
+          v
+  Écran de production
+
+HuddleBoard est uniquement la couche d’affichage web de cette chaîne.
+
+Le projet HuddleBoard fourni ne réalise pas :
+- la saisie des données métier ;
+- la publication Excel en HTML ;
+- la copie Robocopy ;
+- la gestion des groupes ou droits Windows ;
+- la configuration IIS ;
+- la configuration ThinManager ou RDS.
+
+Ces mécanismes appartiennent à l’environnement d’exploitation du client et
+alimentent les fichiers qu’HuddleBoard affiche.
+
+Environnement connu :
+- Excel et Windows récents côté utilisateurs ;
+- Windows Server 2022 ;
+- IIS ;
+- ThinManager avec Chrome Container pour certains écrans ;
+- session RDS pour certains écrans ;
+- autres appareils possibles si leur accès web est qualifié.
+
+Avant toute intervention, la personne chargée de la demande relève dans son
+ticket les chemins, identités techniques, contacts, URL et réglages propres à
+l’équipe concernée.
+
+======================================================================
+2. COMPRENDRE LA CHAÎNE DES DONNÉES
+======================================================================
+
+2.1 Classeur partagé
+--------------------
+
+Les membres habilités d’une équipe ouvrent le même fichier Excel depuis le
+réseau bureautique. Ce classeur constitue la source de travail.
+
+Une copie locale, une pièce jointe ou une duplication du classeur ne met pas
+l’écran de production à jour.
+
+2.2 Publication web
+-------------------
+
+Excel publie un fichier HTML et, selon le classeur, des ressources annexes
+(images, fichiers associés ou répertoire de ressources).
+
+La republication est liée à l’enregistrement du classeur. La saisie d’une
+valeur seule ne garantit donc pas sa présence sur l’écran : l’utilisateur doit
+enregistrer le classeur.
+
+2.3 Transfert
+-------------
+
+Le mécanisme d’exploitation utilise Robocopy pour copier la publication vers
+le dossier web de production correspondant au display.
+
+Le classeur Excel et les autres documents de l’équipe ne font pas partie de ce
+transfert, sauf configuration particulière confirmée par l’exploitation.
+
+Le détail du mécanisme Robocopy (source, destination, fréquence, tâche,
+compte d’exécution et journal) doit être relevé dans la fiche
+A_COMPLETER_ENVIRONNEMENT_CLIENT.txt.
+
+2.4 Serveur web
+---------------
+
+IIS sert l’application HuddleBoard et le contenu HTML publié.
+
+HuddleBoard charge le fichier HTML associé à une équipe dans une iframe, puis
+adapte automatiquement son affichage à la surface disponible.
+
+2.5 Terminal
+------------
+
+Le terminal ouvre l’URL du display associé à l’équipe.
+
+Selon l’environnement, il peut s’agir :
+- d’un terminal géré par ThinManager avec Chrome Container ;
+- d’une session RDS avec navigateur ;
+- d’un autre appareil web dont l’accès a été qualifié.
+
+2.6 Disponibilité et fraîcheur
+------------------------------
+
+Le voyant vert affiché par HuddleBoard signifie qu’une requête HTTP vers le
+HTML principal a réussi selon le code actuel.
+
+Il ne prouve pas que :
+- le classeur Excel a été enregistré ;
+- Excel a republié le HTML ;
+- Robocopy a transféré la dernière publication ;
+- les ressources annexes ont été actualisées.
+
+La fraîcheur doit donc être vérifiée à l’aide :
+- d’une valeur métier datée ou identifiable ;
+- de l’heure d’enregistrement ;
+- des fichiers publiés ;
+- du journal de transfert ;
+- et, si nécessaire, des journaux IIS.
+
+======================================================================
+3. UTILISATION QUOTIDIENNE
+======================================================================
+
+L’utilisateur :
+1. ouvre le classeur partagé de son équipe depuis le réseau ;
+2. modifie uniquement les cellules prévues ;
+3. enregistre manuellement avec Ctrl+S ou le bouton Enregistrer ;
+4. attend le délai communiqué lors de la recette ;
+5. vérifie la valeur attendue sur l’écran.
+
+Le délai réel comprend potentiellement :
+- la republication par Excel ;
+- l’attente du prochain passage de copie ;
+- le transfert Robocopy ;
+- la disponibilité du contenu via IIS ;
+- le prochain contrôle HuddleBoard ;
+- le rechargement du navigateur.
+
+La fréquence de Robocopy ne constitue pas, à elle seule, un délai garanti.
+
+En cas d’anomalie, conserver avant toute action :
+- le nom de l’équipe ;
+- le terminal concerné ;
+- l’heure du dernier Ctrl+S ;
+- la valeur attendue ;
+- la valeur affichée ;
+- le message éventuel ;
+- les changements récents sur le poste, le serveur ou le réseau.
+
+Ne pas modifier directement la copie HTML de production pour corriger une
+erreur métier ou masquer une panne en amont.
+
+======================================================================
+4. MISE EN SERVICE D’UNE NOUVELLE ÉQUIPE
+======================================================================
+
+Les étapes suivantes sont à suivre dans l’ordre. Les valeurs exactes propres au
+site doivent être récupérées dans la fiche d’environnement et dans le ticket de
+mise en service.
+
+Étape 1 — Recueillir la demande
+-------------------------------
+
+Relever :
+- nom de l’équipe ;
+- responsable métier ;
+- utilisateurs concernés ;
+- écran ou terminal concerné ;
+- contenu métier à publier ;
+- fréquence attendue de mise à jour ;
+- contraintes horaires ;
+- interlocuteurs IT et exploitation.
+
+Critère de fin :
+- la demande et les responsabilités sont identifiées.
+
+Étape 2 — Préparer le dossier réseau
+------------------------------------
+
+Créer ou identifier le dossier partagé destiné au classeur.
+
+Définir les droits au moyen des groupes Windows prévus par l’entreprise.
+
+Vérifier :
+- un utilisateur autorisé peut ouvrir et enregistrer le classeur ;
+- un utilisateur non autorisé ne peut pas accéder au dossier.
+
+Critère de fin :
+- les accès sont validés avec les comptes réels ou de test autorisés.
+
+Étape 3 — Préparer le classeur Excel
+------------------------------------
+
+Utiliser le classeur fourni pour l’équipe ou le modèle validé.
+
+Vérifier :
+- le classeur est stocké sur le partage prévu ;
+- les cellules modifiables sont connues des utilisateurs ;
+- le fichier peut être fermé puis rouvert sans perdre la configuration de
+  publication.
+
+Critère de fin :
+- le classeur de référence est utilisable depuis le réseau.
+
+Étape 4 — Configurer et valider la publication HTML
+----------------------------------------------------
+
+Configurer dans Excel la publication vers le répertoire source prévu par
+l’exploitation.
+
+La publication doit inclure le HTML et, lorsque nécessaire, les ressources
+annexes produites par Excel.
+
+Réaliser au minimum deux essais :
+1. modifier une valeur et enregistrer ;
+2. fermer Excel, rouvrir le classeur, modifier une autre valeur et enregistrer.
+
+Vérifier à chaque fois :
+- la date de modification du HTML ;
+- la présence des ressources annexes ;
+- la conservation de la destination de publication après réouverture.
+
+Critère de fin :
+- l’enregistrement du classeur actualise de façon reproductible la publication
+  source.
+
+Étape 5 — Préparer l’identité de transfert
+------------------------------------------
+
+Identifier le compte utilisé par le mécanisme Robocopy.
+
+Lui attribuer uniquement les droits nécessaires :
+- lecture sur la source publiée ;
+- écriture sur le dossier de destination web prévu ;
+- accès aux emplacements de journalisation requis.
+
+Ne pas donner de droits plus larges sans nécessité documentée.
+
+Critère de fin :
+- le transfert fonctionne sous l’identité réellement utilisée en exploitation.
+
+Étape 6 — Configurer le transfert Robocopy
+------------------------------------------
+
+Configurer la copie de la publication vers le dossier de production associé au
+display.
+
+Documenter impérativement :
+- chemin source ;
+- chemin destination ;
+- compte d’exécution ;
+- fréquence ou déclencheur ;
+- commande ou script utilisé ;
+- emplacement des journaux ;
+- comportement attendu sur suppression ;
+- stratégie de reprise.
+
+Vérifier :
+- une modification arrive dans le bon dossier cible ;
+- un passage sans modification ne provoque pas de copie inutile ;
+- aucune autre équipe n’est affectée ;
+- le code retour et le journal sont exploitables.
+
+Critère de fin :
+- le transfert est reproductible et traçable.
+
+Étape 7 — Préparer le contenu servi par IIS
+-------------------------------------------
+
+Créer ou identifier le répertoire web correspondant au display.
+
+Vérifier les droits du compte IIS et du compte de transfert selon les règles de
+l’entreprise.
+
+Depuis un poste situé sur le réseau du terminal, tester :
+- l’URL du HTML principal ;
+- les images et ressources annexes ;
+- l’absence d’erreur 401, 403, 404 ou 500.
+
+Critère de fin :
+- le contenu publié est accessible sur le chemin web prévu depuis le réseau
+  cible.
+
+Étape 8 — Ajouter le display dans config.js
+-------------------------------------------
+
+Le fichier config.js expose window.AppConfig.displays.
+
+Structure utilisée par le code :
+
+  window.AppConfig = {
+      displays: [
+          {
+              name: "Nom affiché",
+              slug: "identifiant-url",
+              path: "chemin/vers/index.html",
+              refreshInterval: 30000,
+              description: "Description facultative"
+          }
+      ]
+  };
+
+Propriétés lues par le code :
+- name : nom affiché ;
+- slug : identifiant utilisé dans l’URL ;
+- path : chemin HTML chargé dans l’iframe ;
+- description : affichée sur l’accueil ;
+- refreshInterval : période de vérification pour ce display.
+
+Le code prévoit également AppConfig.defaultRefreshInterval comme valeur
+globale facultative.
+
+Si aucun intervalle n’est défini, la valeur de repli du code est 30 000 ms.
+
+Critère de fin :
+- l’accueil HuddleBoard affiche la nouvelle entrée ;
+- l’URL /display/#/<slug> charge le bon contenu.
+
+Étape 9 — Configurer le terminal
+--------------------------------
+
+Configurer l’URL du display dans ThinManager / Chrome Container, dans la
+session RDS ou sur l’appareil web concerné.
+
+URL logique :
+  .../display/#/<slug>
+
+Relever la valeur réellement utilisée sur le site.
+
+Vérifier :
+- démarrage automatique si requis ;
+- affichage plein écran si requis ;
+- résolution correcte ;
+- absence de demande interactive bloquante ;
+- accès réseau et certificat si HTTPS ;
+- rechargement après redémarrage de session ou terminal.
+
+Critère de fin :
+- le bon display apparaît sur le terminal réellement utilisé.
+
+Étape 10 — Recetter la chaîne complète
+--------------------------------------
+
+Faire circuler une valeur métier autorisée de bout en bout.
+
+Relever les heures suivantes :
+- saisie ;
+- Ctrl+S ;
+- modification de la publication source ;
+- passage Robocopy ;
+- modification de la cible IIS ;
+- apparition sur l’écran.
+
+Faire plusieurs mesures avant de communiquer un délai aux utilisateurs.
+
+Tester également :
+- fermeture puis réouverture du classeur ;
+- interruption autorisée du transfert ou du service web puis reprise ;
+- modification d’une ressource annexe seule ;
+- comportement d’un utilisateur non autorisé.
+
+Critère de fin :
+- la chaîne est validée sur l’écran physique et les réserves sont consignées.
+
+Étape 11 — Documenter l’équipe
+------------------------------
+
+Dans le ticket ou référentiel prévu, conserver :
+- nom de l’équipe ;
+- chemin du classeur ;
+- groupe Windows ;
+- source de publication ;
+- destination web ;
+- slug ;
+- URL finale ;
+- terminal ou profil ThinManager/RDS ;
+- tâche Robocopy ;
+- journaux ;
+- contacts ;
+- date de recette ;
+- délai mesuré ;
+- réserves connues.
+
+Étape 12 — Remettre aux utilisateurs
+------------------------------------
+
+Transmettre au manager et aux membres concernés :
+- l’emplacement du classeur ;
+- la règle d’enregistrement manuel ;
+- le délai observé ;
+- le contact support ;
+- les consignes en cas d’écran non actualisé.
+
+Retirer les données utilisées uniquement pour la recette.
+
+======================================================================
+5. RECETTE DE LA CHAÎNE COMPLÈTE
+======================================================================
+
+Contrôles minimaux :
+
+Accès
+  Résultat attendu :
+  un membre autorisé ouvre et enregistre le classeur ; un compte non autorisé
+  n’accède pas au dossier.
+
+Excel
+  Résultat attendu :
+  deux enregistrements, dont un après fermeture/réouverture, actualisent le HTML
+  et ses ressources.
+
+Transfert
+  Résultat attendu :
+  la modification arrive dans le seul dossier de production visé ; un passage
+  sans changement n’effectue pas de copie inutile.
+
+Web
+  Résultat attendu :
+  le HTML principal et ses annexes répondent depuis le réseau du terminal.
+
+Écran
+  Résultat attendu :
+  le bon display apparaît et reste lisible sur l’écran visé.
+
+Délai
+  Résultat attendu :
+  plusieurs mesures permettent de communiquer un délai réaliste.
+
+Reprise
+  Résultat attendu :
+  les composants concernés retrouvent leur fonctionnement après interruption
+  autorisée.
+
+Remise
+  Résultat attendu :
+  le manager et les utilisateurs disposent des consignes et contacts convenus.
+
+Test spécifique des ressources annexes :
+modifier uniquement une image ou une ressource annexe sans changer le texte du
+HTML principal.
+
+Le moteur HuddleBoard actuel compare principalement le contenu texte du HTML
+principal. Une ressource modifiée seule peut donc ne pas déclencher le
+rechargement de l’iframe. La limite ou la correction retenue doit être consignée.
+
+======================================================================
+6. EXPLOITATION ET DÉPANNAGE
+======================================================================
+
+Toujours distinguer :
+- disponibilité : la page répond ;
+- fraîcheur : la page contient les dernières données attendues.
+
+Ordre de diagnostic recommandé :
+
+1. Classeur
+   - bon fichier réseau ?
+   - enregistrement réussi ?
+   - fichier en lecture seule ?
+   - valeur attendue toujours présente après réouverture ?
+
+2. Publication
+   - HTML source mis à jour ?
+   - ressources annexes mises à jour ?
+   - destination Excel conservée après réouverture ?
+
+3. Transfert
+   - passage Robocopy visible ?
+   - bonne identité ?
+   - code retour correct ?
+   - source et cible ont-elles les dates attendues ?
+   - journal disponible ?
+
+4. IIS
+   - URL directe accessible depuis le réseau concerné ?
+   - ressources annexes accessibles ?
+   - droits corrects ?
+   - journaux IIS montrant la requête ?
+   - cache intermédiaire éventuel ?
+
+5. HuddleBoard
+   - slug correct ?
+   - path correct dans config.js ?
+   - console navigateur sans erreur ?
+   - HTML principal accessible directement ?
+
+6. Terminal
+   - bon profil ou bonne session RDS ?
+   - bonne URL ?
+   - résolution ?
+   - certificat si HTTPS ?
+   - cache navigateur ou session à relancer ?
+
+Comparer source et cible en lecture seule avant de relancer un composant.
+
+Ne pas éditer l’export HTML de production pour masquer une panne en amont.
+
+Conserver les preuves dans le ticket.
+
+En cas de publication accidentelle de contenu confidentiel, appliquer la
+procédure d’incident de l’entreprise.
+
+======================================================================
+7. RÉFÉRENCE TECHNIQUE HuddleBoard
+======================================================================
+
+7.1 Fichiers principaux
+-----------------------
+
+index.html
+  Page d’accueil. Charge config.js puis construit une carte par display valide.
+
+config.js
+  Configuration des displays.
+
+display/index.html
+  Lecteur d’un display. Contient le moteur d’affichage et les fonctions de
+  supervision côté navigateur.
+
+display/displays/
+  Dans la copie du projet, contient des contenus de test et d’exemple. Ces
+  fichiers ne doivent pas être considérés comme la configuration client réelle.
+
+7.2 Sélection du display
+------------------------
+
+L’URL utilise le fragment :
+  #/<slug>
+
+Le lecteur recherche dans AppConfig.displays l’entrée dont le slug correspond.
+
+7.3 Affichage dans l’iframe
+---------------------------
+
+DisplayManager :
+- génère l’en-tête ;
+- crée l’iframe ;
+- applique le path du display ;
+- initialise la mise à l’échelle ;
+- initialise le service de rafraîchissement.
+
+Un chargement d’iframe qui dépasse 30 secondes déclenche une tentative de
+rechargement.
+
+Une erreur iframe déclenche une nouvelle tentative après 5 secondes.
+
+7.4 Mise à l’échelle
+--------------------
+
+ScaleHandler :
+- attend le chargement de l’iframe ;
+- mesure largeur et hauteur du contenu ;
+- calcule le facteur min(
+    largeur écran / largeur contenu,
+    hauteur écran / hauteur contenu
+  ) ;
+- applique une transformation CSS scale() ;
+- recentre le contenu ;
+- recalcule lors d’un redimensionnement.
+
+Le code accède au document de l’iframe. Le contenu doit donc rester compatible
+avec les règles same-origin de l’environnement.
+
+7.5 Vérification des changements
+--------------------------------
+
+RefreshService :
+- utilise refreshInterval du display ;
+- sinon AppConfig.defaultRefreshInterval ;
+- sinon 30 000 ms ;
+- ajoute un paramètre t=<timestamp> à l’URL ;
+- effectue un GET avec cache: no-cache ;
+- abandonne la requête après 10 secondes ;
+- lit le HTML retourné en texte ;
+- calcule un hash simple ;
+- recharge l’iframe uniquement si le hash change après l’établissement de la
+  référence initiale.
+
+Après plus de cinq erreurs consécutives, l’intervalle est doublé, avec un
+maximum de 300 000 ms.
+
+7.6 Indicateurs
+---------------
+
+Bannière de statut :
+- vert après une requête HTTP réussie ;
+- rouge après certaines erreurs de requête.
+
+Bannière de modification :
+- affiche l’heure à laquelle HuddleBoard a détecté une modification du HTML.
+
+Bannière de santé :
+- uptime du lecteur ;
+- nombre de refresh comptabilisés ;
+- nombre d’erreurs comptabilisées.
+
+7.7 Contrôle de santé
+---------------------
+
+Toutes les 30 secondes, HealthMonitor met à jour sa bannière.
+
+Si performance.memory est disponible :
+- le code surveille le ratio mémoire utilisée / limite JavaScript ;
+- au-dessus de 80 %, un avertissement mémoire est comptabilisé ;
+- après plus de cinq avertissements, la page est rechargée.
+
+Indépendamment de cette mesure, le lecteur programme un rechargement préventif
+toutes les 12 heures.
+
+======================================================================
+8. LIMITES CONNUES DE LA VERSION FOURNIE
+======================================================================
+
+Les points ci-dessous proviennent de la lecture du code de la branche main.
+Ils doivent être considérés lors de l’exploitation.
+
+1. Référence initiale
+   Le premier contrôle HTTP établit le hash de référence sans forcer un
+   rechargement de l’iframe. Si l’iframe a initialement chargé une ancienne
+   version et que le premier fetch reçoit déjà la nouvelle, celle-ci peut ne pas
+   être affichée avant une modification ultérieure.
+
+2. Ressources annexes
+   La comparaison porte sur le texte du HTML principal. Une image ou autre
+   ressource annexe modifiée seule peut ne pas déclencher le rechargement.
+
+3. Ralentissement après erreurs
+   Après plus de cinq erreurs, l’intervalle augmente. Le code fourni ne contient
+   pas de mécanisme explicite ramenant automatiquement cet intervalle à sa valeur
+   initiale après retour à la normale.
+
+4. Timeout
+   Une requête annulée par AbortController est ignorée par le traitement
+   d’erreur visuel. Le voyant peut donc conserver son état précédent.
+
+5. Slug inconnu
+   Si aucun display ne correspond au slug, le code n’affiche pas de message
+   métier spécifique.
+
+6. Changement de fragment
+   La sélection du display est faite lors de l’initialisation. Le code ne
+   réécoute pas explicitement hashchange pour reconstruire le display.
+
+7. Iframe non isolée
+   Le contenu HTML publié est chargé avec accès au document iframe nécessaire au
+   scaling. N’accepter que des classeurs, publications et contenus approuvés par
+   l’entreprise.
+
+======================================================================
+9. SAUVEGARDE ET TRAÇABILITÉ
+======================================================================
+
+Les sauvegardes d’exploitation doivent couvrir au minimum :
+- les classeurs sources ;
+- la configuration HuddleBoard ;
+- les scripts ou tâches de transfert ;
+- les paramètres IIS nécessaires au service ;
+- les paramètres ThinManager/RDS nécessaires à l’affichage ;
+- les informations de recette et de support.
+
+Le dépôt Git constitue la source de référence pour le code HuddleBoard.
+Les anciennes documentations ont été retirées de main afin d’éviter l’usage de
+procédures non confirmées. Leur historique reste disponible dans Git.
+
+======================================================================
+10. INFORMATIONS À RENSEIGNER POUR LE SITE
+======================================================================
+
+Les informations exactes d’environnement ne sont pas déduites du code.
+
+Utiliser A_COMPLETER_ENVIRONNEMENT_CLIENT.txt pour relever :
+- serveur IIS ;
+- URL ;
+- chemins réseau ;
+- groupes Windows ;
+- comptes de service ;
+- tâche Robocopy ;
+- fréquence ;
+- journaux ;
+- paramètres ThinManager ;
+- paramètres RDS ;
+- contacts ;
+- procédures d’escalade ;
+- sauvegarde ;
+- contraintes de maintenance.
+
+Une fois ces informations confirmées, elles peuvent être intégrées à cette
+documentation et la fiche temporaire supprimée.
+
+======================================================================
+FIN DU DOCUMENT
+======================================================================
