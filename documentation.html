@@ -36,6 +36,7 @@ small{color:#6b7280}
   <h1>HuddleBoard</h1>
   <p>Guide du service, de la mise en place d’une équipe et de l’exploitation</p>
   <p><small>Application propriétaire · usage interne · 30 septembre 2026</small></p>
+  <p><small>Branche documentée : <strong>main</strong> · code applicatif analysé : <code>e37224732f9942127e583fc27471b40528541d94</code></small></p>
 </header>
 <main>
 <nav>
@@ -56,6 +57,7 @@ small{color:#6b7280}
 
 <section id="perimetre">
 <h2>1. Objet et périmètre</h2>
+<div class="fact"><strong>Statut des informations :</strong> les comportements techniques décrits comme faisant partie de HuddleBoard ont été vérifiés dans le code de <code>main</code>. Les éléments d’infrastructure (Excel, Robocopy, IIS, ThinManager, RDS) décrivent l’environnement communiqué. Les valeurs propres au site qui ne figurent pas dans le dépôt doivent être confirmées dans <code>A_COMPLETER_ENVIRONNEMENT_CLIENT.txt</code>.</div>
 <p>HuddleBoard diffuse sur des écrans de production les informations saisies dans un classeur Excel partagé.</p>
 <div class="note"><strong>Périmètre :</strong> HuddleBoard est uniquement la couche d’affichage web. Il ne réalise ni la saisie Excel, ni la publication HTML, ni le transfert Robocopy, ni la gestion des droits Windows, ni la configuration IIS, ThinManager ou RDS.</div>
 <p>Environnement connu : Excel et Windows récents côté utilisateurs, Windows Server 2022 avec IIS, ThinManager avec Chrome Container pour certains écrans, sessions RDS pour certains écrans, et éventuellement d’autres appareils web après qualification.</p>
