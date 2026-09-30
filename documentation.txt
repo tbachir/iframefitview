@@ -2,6 +2,22 @@ HuddleBoard
 Guide du service, de la mise en place d’une équipe et de l’exploitation
 Application propriétaire · usage interne · 30 septembre 2026
 
+Version documentée
+------------------
+Branche de référence : main
+Révision du code applicatif analysée : e37224732f9942127e583fc27471b40528541d94
+
+Les commits de documentation postérieurs à cette révision n’ont pas modifié
+index.html, config.js ni display/index.html.
+
+Statut des informations
+-----------------------
+- CONFIRMÉ PAR LE CODE : comportement directement vérifiable dans la branche
+  main du dépôt.
+- CONFIRMÉ ENVIRONNEMENT : information fournie sur l’installation client.
+- À CONFIRMER SUR SITE : valeur d’exploitation absente du dépôt et à relever
+  dans A_COMPLETER_ENVIRONNEMENT_CLIENT.txt.
+
 ======================================================================
 1. OBJET ET PÉRIMÈTRE
 ======================================================================
