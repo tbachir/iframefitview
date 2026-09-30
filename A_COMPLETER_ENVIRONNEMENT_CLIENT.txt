@@ -6,6 +6,11 @@ Objet
 Cette fiche sert uniquement à compléter les informations que le dépôt Git ne
 permet pas de confirmer.
 
+Référence documentaire :
+- branche : main
+- code applicatif analysé : e37224732f9942127e583fc27471b40528541d94
+- date de l’édition : 30 septembre 2026
+
 Merci de renseigner ce qui est connu et d’écrire "INCONNU" lorsque l’information
 n’est pas disponible. Ne pas deviner.
 
